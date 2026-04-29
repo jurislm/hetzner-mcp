@@ -44,16 +44,16 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.1",
     "axios": "^1.7.9",
-    "zod": "^3.23.8"
+    "zod": "^4.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^22.10.0",
+    "@types/node": "^25.0.0",
     "eslint": "^10.2.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.4.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
+    "typescript": "^6.0.0",
     "typescript-eslint": "^8.58.1",
     "vitest": "^4.1.0"
   }

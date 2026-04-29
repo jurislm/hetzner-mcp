@@ -135,7 +135,7 @@ Args:
       inputSchema: z.object({
         name: z.string().min(1).max(255).describe("Name for the SSH key"),
         public_key: z.string().min(1).describe("The SSH public key content"),
-        labels: z.record(z.string()).optional().describe("Optional labels as key-value pairs"),
+        labels: z.record(z.string(), z.string()).optional().describe("Optional labels as key-value pairs"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {

@@ -173,7 +173,7 @@ Returns the new server details including IP address and root password (if no SSH
         location: z.string().optional().describe("Datacenter location (e.g., 'fsn1', 'nbg1')"),
         ssh_keys: z.array(z.union([z.string(), z.number()])).optional()
           .describe("SSH key names or IDs for access"),
-        labels: z.record(z.string()).optional().describe("Labels as key-value pairs"),
+        labels: z.record(z.string(), z.string()).optional().describe("Labels as key-value pairs"),
         start_after_create: z.boolean().default(true).describe("Start server after creation"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
