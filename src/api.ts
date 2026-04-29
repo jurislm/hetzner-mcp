@@ -7,42 +7,32 @@ const STORAGE_BOX_API_BASE_URL = "https://api.hetzner.com/v1";
 let apiClient: AxiosInstance | null = null;
 let storageBoxApiClient: AxiosInstance | null = null;
 
+function createHetznerClient(baseURL: string): AxiosInstance {
+  const token = process.env.HETZNER_API_TOKEN;
+  if (!token) {
+    throw new Error("HETZNER_API_TOKEN environment variable is required");
+  }
+  return axios.create({
+    baseURL,
+    timeout: 30000,
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    }
+  });
+}
+
 export function getApiClient(): AxiosInstance {
   if (!apiClient) {
-    const token = process.env.HETZNER_API_TOKEN;
-    if (!token) {
-      throw new Error("HETZNER_API_TOKEN environment variable is required");
-    }
-
-    apiClient = axios.create({
-      baseURL: API_BASE_URL,
-      timeout: 30000,
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      }
-    });
+    apiClient = createHetznerClient(API_BASE_URL);
   }
   return apiClient;
 }
 
 export function getStorageBoxApiClient(): AxiosInstance {
   if (!storageBoxApiClient) {
-    const token = process.env.HETZNER_API_TOKEN;
-    if (!token) {
-      throw new Error("HETZNER_API_TOKEN environment variable is required");
-    }
-
-    storageBoxApiClient = axios.create({
-      baseURL: STORAGE_BOX_API_BASE_URL,
-      timeout: 30000,
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      }
-    });
+    storageBoxApiClient = createHetznerClient(STORAGE_BOX_API_BASE_URL);
   }
   return storageBoxApiClient;
 }

@@ -18,8 +18,8 @@ function formatBytes(bytes: number): string {
 }
 
 function formatStorageBox(box: HetznerStorageBox): string {
-  const protocols = ["ssh", "webdav", "samba", "zfs"]
-    .filter((p) => box[p as keyof HetznerStorageBox])
+  const protocols = (["ssh", "webdav", "samba", "zfs"] as (keyof Pick<HetznerStorageBox, "ssh" | "webdav" | "samba" | "zfs">)[])
+    .filter((p) => box[p] === true)
     .join(", ") || "none";
 
   const lines = [
@@ -43,8 +43,8 @@ function formatStorageBox(box: HetznerStorageBox): string {
 }
 
 function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
-  const protocols = ["ssh", "webdav", "samba"]
-    .filter((p) => sub[p as keyof HetznerStorageBoxSubaccount])
+  const protocols = (["ssh", "webdav", "samba"] as (keyof Pick<HetznerStorageBoxSubaccount, "ssh" | "webdav" | "samba">)[])
+    .filter((p) => sub[p] === true)
     .join(", ") || "none";
 
   return [
