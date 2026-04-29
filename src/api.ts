@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
+import { z } from "zod";
 
 const API_BASE_URL = "https://api.hetzner.cloud/v1";
 const STORAGE_BOX_API_BASE_URL = "https://api.hetzner.com/v1";
@@ -66,20 +67,24 @@ export function getStorageBoxApiClient(): AxiosInstance {
   return storageBoxApiClient;
 }
 
+// C-1: All Storage Box API responses are validated with a Zod schema at the
+// boundary. An unexpected API shape throws ZodError (handled in handleApiError)
+// instead of silently coercing to undefined downstream.
 export async function makeStorageBoxApiRequest<T>(
   endpoint: string,
+  schema: z.ZodType<T>,
   method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
   data?: unknown,
   params?: Record<string, unknown>
 ): Promise<T> {
   const client = getStorageBoxApiClient();
-  const response = await client.request<T>({
+  const response = await client.request<unknown>({
     url: endpoint,
     method,
     data,
     params
   });
-  return response.data;
+  return schema.parse(response.data);
 }
 
 export async function makeApiRequest<T>(
@@ -116,6 +121,17 @@ function extractHetznerErrorMessage(data: unknown): string | undefined {
 }
 
 export function handleApiError(error: unknown): string {
+  // C-1: ZodError = API response shape didn't match our schema. This is
+  // distinct from a network or HTTP error — the request succeeded but the
+  // payload is unexpected (API change, partial response, wrong endpoint).
+  if (error instanceof z.ZodError) {
+    const firstIssue = error.issues[0];
+    const path = firstIssue.path.length > 0 ? firstIssue.path.join(".") : "<root>";
+    return (
+      `Error: Hetzner API returned an unexpected response shape at "${path}": ${firstIssue.message}. ` +
+      "This may indicate an API change. Please report this issue."
+    );
+  }
   if (error instanceof AxiosError) {
     if (error.response) {
       const status = error.response.status;

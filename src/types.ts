@@ -1,5 +1,7 @@
 // Hetzner Cloud API Type Definitions
 
+import { z } from "zod";
+
 // Response format enum
 export enum ResponseFormat {
   MARKDOWN = "markdown",
@@ -164,64 +166,76 @@ export interface CreateSSHKeyResponse {
   ssh_key: HetznerSSHKey;
 }
 
-// Storage Box types
-export interface HetznerStorageBox {
-  id: number;
-  name: string;
-  login: string;
-  product: string;
-  location: string;
-  quota_bytes: number;
-  used_bytes: number;
-  snapshots_used_bytes: number;
-  ssh: boolean;
-  webdav: boolean;
-  samba: boolean;
-  zfs: boolean;
-  external_reachability: boolean;
-  locked: boolean;
-  cancelled: boolean;
-  paid_until: string | null;
-}
-
-export interface HetznerStorageBoxSubaccount {
-  username: string;
-  home_directory: string;
-  ssh: boolean;
-  webdav: boolean;
-  samba: boolean;
-  external_reachability: boolean;
-  readonly: boolean;
-  comment: string | null;
-}
+// Storage Box — Zod schemas at API boundary (C-1).
+// These schemas are validated at runtime via makeStorageBoxApiRequest, so
+// unexpected API response shapes fail loudly with a ZodError instead of
+// silently coercing to undefined. Static types are inferred via z.infer to
+// keep a single source of truth.
 
 // Pagination envelope returned by Hetzner unified API list endpoints.
-export interface HetznerPagination {
-  page: number;
-  per_page: number;
-  previous_page: number | null;
-  next_page: number | null;
-  last_page: number | null;
-  total_entries: number | null;
-}
+export const HetznerPaginationSchema = z.object({
+  page: z.number(),
+  per_page: z.number(),
+  previous_page: z.number().nullable(),
+  next_page: z.number().nullable(),
+  last_page: z.number().nullable(),
+  total_entries: z.number().nullable()
+});
+export type HetznerPagination = z.infer<typeof HetznerPaginationSchema>;
 
-export interface HetznerMeta {
-  pagination?: HetznerPagination;
-}
+export const HetznerMetaSchema = z.object({
+  pagination: HetznerPaginationSchema.optional()
+});
+export type HetznerMeta = z.infer<typeof HetznerMetaSchema>;
 
-export interface ListStorageBoxesResponse {
-  storage_boxes: HetznerStorageBox[];
-  meta?: HetznerMeta;
-}
+export const HetznerStorageBoxSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  login: z.string(),
+  product: z.string(),
+  location: z.string(),
+  quota_bytes: z.number(),
+  used_bytes: z.number(),
+  snapshots_used_bytes: z.number(),
+  ssh: z.boolean(),
+  webdav: z.boolean(),
+  samba: z.boolean(),
+  zfs: z.boolean(),
+  external_reachability: z.boolean(),
+  locked: z.boolean(),
+  cancelled: z.boolean(),
+  paid_until: z.string().nullable()
+});
+export type HetznerStorageBox = z.infer<typeof HetznerStorageBoxSchema>;
 
-export interface GetStorageBoxResponse {
-  storage_box: HetznerStorageBox;
-}
+export const HetznerStorageBoxSubaccountSchema = z.object({
+  username: z.string(),
+  home_directory: z.string(),
+  ssh: z.boolean(),
+  webdav: z.boolean(),
+  samba: z.boolean(),
+  external_reachability: z.boolean(),
+  readonly: z.boolean(),
+  comment: z.string().nullable()
+});
+export type HetznerStorageBoxSubaccount = z.infer<typeof HetznerStorageBoxSubaccountSchema>;
 
-export interface ListStorageBoxSubaccountsResponse {
-  subaccounts: HetznerStorageBoxSubaccount[];
-  meta?: HetznerMeta;
-}
+export const ListStorageBoxesResponseSchema = z.object({
+  storage_boxes: z.array(HetznerStorageBoxSchema),
+  meta: HetznerMetaSchema.optional()
+});
+export type ListStorageBoxesResponse = z.infer<typeof ListStorageBoxesResponseSchema>;
+
+export const GetStorageBoxResponseSchema = z.object({
+  storage_box: HetznerStorageBoxSchema
+});
+export type GetStorageBoxResponse = z.infer<typeof GetStorageBoxResponseSchema>;
+
+export const ListStorageBoxSubaccountsResponseSchema = z.object({
+  subaccounts: z.array(HetznerStorageBoxSubaccountSchema),
+  meta: HetznerMetaSchema.optional()
+});
+export type ListStorageBoxSubaccountsResponse = z.infer<typeof ListStorageBoxSubaccountsResponseSchema>;
 
 // API Error
 export interface HetznerAPIError {

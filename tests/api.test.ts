@@ -6,6 +6,7 @@ import {
   handleApiError,
   __resetClientsForTesting
 } from "../src/api.js";
+import { ListStorageBoxesResponseSchema } from "../src/types.js";
 
 beforeEach(() => {
   __resetClientsForTesting();
@@ -178,5 +179,34 @@ describe("handleApiError — non-axios errors", () => {
 
   it("non-Error value returns generic message", () => {
     expect(handleApiError("not an error")).toContain("unexpected error");
+  });
+});
+
+describe("handleApiError — ZodError (C-1: API boundary mismatch)", () => {
+  it("formats ZodError as 'unexpected response shape' with the failing path", () => {
+    const result = ListStorageBoxesResponseSchema.safeParse({
+      storage_boxes: [
+        {
+          // missing required fields like name, login, quota_bytes...
+          id: 123
+        }
+      ]
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const out = handleApiError(result.error);
+      expect(out).toContain("unexpected response shape");
+      expect(out).toContain("storage_boxes.0");
+      expect(out).toContain("Please report this issue");
+    }
+  });
+
+  it("handles top-level ZodError (path = <root>)", () => {
+    const result = ListStorageBoxesResponseSchema.safeParse("not an object at all");
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const out = handleApiError(result.error);
+      expect(out).toContain("unexpected response shape");
+    }
   });
 });

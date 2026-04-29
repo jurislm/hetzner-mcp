@@ -18,7 +18,8 @@ import { makeStorageBoxApiRequest } from "../../src/api.js";
 import {
   HetznerStorageBox,
   HetznerStorageBoxSubaccount,
-  ListStorageBoxesResponse
+  ListStorageBoxesResponse,
+  ListStorageBoxesResponseSchema
 } from "../../src/types.js";
 
 const mockedRequest = vi.mocked(makeStorageBoxApiRequest);
@@ -178,6 +179,7 @@ describe("paginatedFetch", () => {
 
     const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
       "/storage_boxes",
+      ListStorageBoxesResponseSchema,
       (r) => r.storage_boxes
     );
 
@@ -196,6 +198,7 @@ describe("paginatedFetch", () => {
 
     const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
       "/storage_boxes",
+      ListStorageBoxesResponseSchema,
       (r) => r.storage_boxes
     );
 
@@ -212,6 +215,7 @@ describe("paginatedFetch", () => {
 
     const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
       "/storage_boxes",
+      ListStorageBoxesResponseSchema,
       (r) => r.storage_boxes
     );
 
@@ -226,6 +230,7 @@ describe("paginatedFetch", () => {
 
     const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
       "/storage_boxes",
+      ListStorageBoxesResponseSchema,
       (r) => r.storage_boxes
     );
 
@@ -238,7 +243,7 @@ describe("paginatedFetch", () => {
     mockedRequest.mockRejectedValueOnce(new Error("first-page boom"));
 
     await expect(
-      paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>("/storage_boxes", (r) => r.storage_boxes)
+      paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>("/storage_boxes", ListStorageBoxesResponseSchema, (r) => r.storage_boxes)
     ).rejects.toThrow("first-page boom");
 
     expect(mockedRequest).toHaveBeenCalledTimes(1);
@@ -251,6 +256,7 @@ describe("paginatedFetch", () => {
 
     const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
       "/storage_boxes",
+      ListStorageBoxesResponseSchema,
       (r) => r.storage_boxes
     );
 

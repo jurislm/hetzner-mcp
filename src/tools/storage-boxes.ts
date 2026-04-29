@@ -4,8 +4,10 @@ import { makeStorageBoxApiRequest, handleApiError } from "../api.js";
 import {
   ResponseFormat,
   ListStorageBoxesResponse,
-  GetStorageBoxResponse,
+  ListStorageBoxesResponseSchema,
+  GetStorageBoxResponseSchema,
   ListStorageBoxSubaccountsResponse,
+  ListStorageBoxSubaccountsResponseSchema,
   HetznerStorageBox,
   HetznerStorageBoxSubaccount,
   HetznerMeta,
@@ -88,9 +90,11 @@ type ListExtractor<TResponse, TItem> = (resp: TResponse) => TItem[];
 
 // I-5: use the named HetznerMeta in the constraint instead of an inline anonymous shape
 // so future changes to the meta envelope propagate automatically.
+// C-1: schema is validated inside makeStorageBoxApiRequest.
 // Exported for unit testing.
 export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, TItem>(
   endpoint: string,
+  schema: z.ZodType<TResponse>,
   extractItems: ListExtractor<TResponse, TItem>,
   perPage: number = 50
 ): Promise<PaginatedListResult<TItem>> {
@@ -105,7 +109,7 @@ export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, T
       break;
     }
     try {
-      const pageData: TResponse = await makeStorageBoxApiRequest<TResponse>(endpoint, "GET", undefined, {
+      const pageData: TResponse = await makeStorageBoxApiRequest<TResponse>(endpoint, schema, "GET", undefined, {
         page: nextPage,
         per_page: perPage
       });
@@ -167,8 +171,9 @@ Returns Storage Boxes with their:
         let partialFailure: string | undefined;
 
         if (params.page !== undefined) {
-          const data = await makeStorageBoxApiRequest<ListStorageBoxesResponse>(
+          const data = await makeStorageBoxApiRequest(
             "/storage_boxes",
+            ListStorageBoxesResponseSchema,
             "GET",
             undefined,
             { page: params.page, per_page: params.per_page ?? 50 }
@@ -177,6 +182,7 @@ Returns Storage Boxes with their:
         } else {
           const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
             "/storage_boxes",
+            ListStorageBoxesResponseSchema,
             (r) => r.storage_boxes,
             params.per_page ?? 50
           );
@@ -240,7 +246,7 @@ Returns Storage Boxes with their:
     },
     async (params) => {
       try {
-        const data = await makeStorageBoxApiRequest<GetStorageBoxResponse>(`/storage_boxes/${params.id}`);
+        const data = await makeStorageBoxApiRequest(`/storage_boxes/${params.id}`, GetStorageBoxResponseSchema);
         const box = data.storage_box;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -297,8 +303,9 @@ Returns subaccounts with their:
         let partialFailure: string | undefined;
 
         if (params.page !== undefined) {
-          const data = await makeStorageBoxApiRequest<ListStorageBoxSubaccountsResponse>(
+          const data = await makeStorageBoxApiRequest(
             endpoint,
+            ListStorageBoxSubaccountsResponseSchema,
             "GET",
             undefined,
             { page: params.page, per_page: params.per_page ?? 50 }
@@ -307,6 +314,7 @@ Returns subaccounts with their:
         } else {
           const result = await paginatedFetch<ListStorageBoxSubaccountsResponse, HetznerStorageBoxSubaccount>(
             endpoint,
+            ListStorageBoxSubaccountsResponseSchema,
             (r) => r.subaccounts,
             params.per_page ?? 50
           );
