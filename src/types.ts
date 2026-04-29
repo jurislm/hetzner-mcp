@@ -6,6 +6,12 @@ export enum ResponseFormat {
   JSON = "json"
 }
 
+// Utility: keys of T whose value type is exactly `boolean`. Used to constrain
+// arrays like STORAGE_BOX_PROTOCOLS so a typo (e.g. "name") fails typecheck.
+export type BooleanKeys<T> = {
+  [K in keyof T]-?: T[K] extends boolean ? K : never;
+}[keyof T];
+
 // Server types
 export interface HetznerServer {
   id: number;

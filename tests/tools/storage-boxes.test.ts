@@ -1,13 +1,31 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+vi.mock("../../src/api.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../src/api.js")>();
+  return {
+    ...actual,
+    makeStorageBoxApiRequest: vi.fn()
+  };
+});
+
 import {
   formatBytes,
   formatStorageBox,
-  formatSubaccount
+  formatSubaccount,
+  paginatedFetch
 } from "../../src/tools/storage-boxes.js";
+import { makeStorageBoxApiRequest } from "../../src/api.js";
 import {
   HetznerStorageBox,
-  HetznerStorageBoxSubaccount
+  HetznerStorageBoxSubaccount,
+  ListStorageBoxesResponse
 } from "../../src/types.js";
+
+const mockedRequest = vi.mocked(makeStorageBoxApiRequest);
+
+beforeEach(() => {
+  mockedRequest.mockReset();
+});
 
 const baseBox: HetznerStorageBox = {
   id: 1,
@@ -131,5 +149,115 @@ describe("formatSubaccount", () => {
       samba: false
     });
     expect(out).toContain("- **Protocols**: none");
+  });
+});
+
+function makeBox(id: number): HetznerStorageBox {
+  return { ...baseBox, id, name: `box-${id}` };
+}
+
+function pageResponse(boxes: HetznerStorageBox[], nextPage: number | null): ListStorageBoxesResponse {
+  return {
+    storage_boxes: boxes,
+    meta: {
+      pagination: {
+        page: 1,
+        per_page: 50,
+        previous_page: null,
+        next_page: nextPage,
+        last_page: nextPage,
+        total_entries: null
+      }
+    }
+  };
+}
+
+describe("paginatedFetch", () => {
+  it("returns single page when next_page is null on first response", async () => {
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(1), makeBox(2)], null));
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      (r) => r.storage_boxes
+    );
+
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].id).toBe(1);
+    expect(result.truncated).toBe(false);
+    expect(result.partialFailure).toBeUndefined();
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("traverses 3 pages and concatenates results in order", async () => {
+    mockedRequest
+      .mockResolvedValueOnce(pageResponse([makeBox(1), makeBox(2)], 2))
+      .mockResolvedValueOnce(pageResponse([makeBox(3), makeBox(4)], 3))
+      .mockResolvedValueOnce(pageResponse([makeBox(5)], null));
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      (r) => r.storage_boxes
+    );
+
+    expect(result.items.map((b) => b.id)).toEqual([1, 2, 3, 4, 5]);
+    expect(result.truncated).toBe(false);
+    expect(mockedRequest).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops at the 5-page hard cap and sets truncated", async () => {
+    // Always return next_page = current+1 so the loop would keep going forever.
+    for (let i = 1; i <= 6; i++) {
+      mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(i)], i + 1));
+    }
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      (r) => r.storage_boxes
+    );
+
+    expect(result.items).toHaveLength(5);
+    expect(result.truncated).toBe(true);
+    expect(mockedRequest).toHaveBeenCalledTimes(5);
+  });
+
+  it("treats a missing meta.pagination as end-of-stream (single page)", async () => {
+    // Older API response shape with no meta — should not loop forever.
+    mockedRequest.mockResolvedValueOnce({ storage_boxes: [makeBox(1)] } as ListStorageBoxesResponse);
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      (r) => r.storage_boxes
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.truncated).toBe(false);
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("propagates first-page failure (caller's catch should turn into isError)", async () => {
+    mockedRequest.mockRejectedValueOnce(new Error("first-page boom"));
+
+    await expect(
+      paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>("/storage_boxes", (r) => r.storage_boxes)
+    ).rejects.toThrow("first-page boom");
+
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns partial results with partialFailure on mid-stream failure", async () => {
+    mockedRequest
+      .mockResolvedValueOnce(pageResponse([makeBox(1), makeBox(2)], 2))
+      .mockRejectedValueOnce(new Error("page-2 boom"));
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      (r) => r.storage_boxes
+    );
+
+    expect(result.items.map((b) => b.id)).toEqual([1, 2]);
+    expect(result.truncated).toBe(false);
+    expect(result.partialFailure).toBeDefined();
+    expect(result.partialFailure).toContain("page-2 boom");
+    expect(mockedRequest).toHaveBeenCalledTimes(2);
   });
 });

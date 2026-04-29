@@ -7,14 +7,18 @@ import {
   GetStorageBoxResponse,
   ListStorageBoxSubaccountsResponse,
   HetznerStorageBox,
-  HetznerStorageBoxSubaccount
+  HetznerStorageBoxSubaccount,
+  HetznerMeta,
+  BooleanKeys
 } from "../types.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const PAGINATION_HARD_CAP_PAGES = 5;
 
-const STORAGE_BOX_PROTOCOLS = ["ssh", "webdav", "samba", "zfs"] as const satisfies readonly (keyof HetznerStorageBox)[];
-const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly (keyof HetznerStorageBoxSubaccount)[];
+// C-3: constrain to keys whose value type is `boolean` so a typo like "name"
+// fails typecheck instead of silently filtering to false at runtime.
+const STORAGE_BOX_PROTOCOLS = ["ssh", "webdav", "samba", "zfs"] as const satisfies readonly BooleanKeys<HetznerStorageBox>[];
+const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly BooleanKeys<HetznerStorageBoxSubaccount>[];
 
 // Exported for unit testing.
 export function formatBytes(bytes: number): string {
@@ -72,14 +76,20 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
   return lines.join("\n");
 }
 
-interface PaginatedListResult<T> {
+export interface PaginatedListResult<T> {
   items: T[];
   truncated: boolean;
+  // I-1: when set, fetching mid-stream failed AFTER at least one page succeeded.
+  // The first-page failure path still throws so the caller's catch sees it.
+  partialFailure?: string;
 }
 
 type ListExtractor<TResponse, TItem> = (resp: TResponse) => TItem[];
 
-async function paginatedFetch<TResponse extends { meta?: { pagination?: { next_page: number | null } } }, TItem>(
+// I-5: use the named HetznerMeta in the constraint instead of an inline anonymous shape
+// so future changes to the meta envelope propagate automatically.
+// Exported for unit testing.
+export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, TItem>(
   endpoint: string,
   extractItems: ListExtractor<TResponse, TItem>,
   perPage: number = 50
@@ -94,13 +104,26 @@ async function paginatedFetch<TResponse extends { meta?: { pagination?: { next_p
       truncated = true;
       break;
     }
-    const pageData: TResponse = await makeStorageBoxApiRequest<TResponse>(endpoint, "GET", undefined, {
-      page: nextPage,
-      per_page: perPage
-    });
-    accumulated.push(...extractItems(pageData));
-    pagesFetched += 1;
-    nextPage = pageData.meta?.pagination?.next_page ?? null;
+    try {
+      const pageData: TResponse = await makeStorageBoxApiRequest<TResponse>(endpoint, "GET", undefined, {
+        page: nextPage,
+        per_page: perPage
+      });
+      accumulated.push(...extractItems(pageData));
+      pagesFetched += 1;
+      nextPage = pageData.meta?.pagination?.next_page ?? null;
+    } catch (error) {
+      // First-page failure → propagate so the caller returns isError: true.
+      if (pagesFetched === 0) {
+        throw error;
+      }
+      // Mid-stream failure → return partial results with the error noted.
+      return {
+        items: accumulated,
+        truncated: false,
+        partialFailure: handleApiError(error)
+      };
+    }
   }
 
   return { items: accumulated, truncated };
@@ -141,6 +164,7 @@ Returns Storage Boxes with their:
       try {
         let boxes: HetznerStorageBox[];
         let truncated = false;
+        let partialFailure: string | undefined;
 
         if (params.page !== undefined) {
           const data = await makeStorageBoxApiRequest<ListStorageBoxesResponse>(
@@ -158,15 +182,16 @@ Returns Storage Boxes with their:
           );
           boxes = result.items;
           truncated = result.truncated;
+          partialFailure = result.partialFailure;
         }
 
         if (params.response_format === ResponseFormat.JSON) {
           return {
-            content: [{ type: "text", text: JSON.stringify({ storage_boxes: boxes, truncated }, null, 2) }]
+            content: [{ type: "text", text: JSON.stringify({ storage_boxes: boxes, truncated, partialFailure }, null, 2) }]
           };
         }
 
-        if (boxes.length === 0) {
+        if (boxes.length === 0 && !partialFailure) {
           return {
             content: [{ type: "text", text: "No Storage Boxes found." }]
           };
@@ -179,6 +204,9 @@ Returns Storage Boxes with their:
         }
         if (truncated) {
           lines.push(TRUNCATION_NOTE);
+        }
+        if (partialFailure) {
+          lines.push(`> ⚠️ Partial result: pagination failed mid-stream. ${partialFailure}`);
         }
 
         return {
@@ -266,6 +294,7 @@ Returns subaccounts with their:
         const endpoint = `/storage_boxes/${params.id}/subaccounts`;
         let subaccounts: HetznerStorageBoxSubaccount[];
         let truncated = false;
+        let partialFailure: string | undefined;
 
         if (params.page !== undefined) {
           const data = await makeStorageBoxApiRequest<ListStorageBoxSubaccountsResponse>(
@@ -283,15 +312,16 @@ Returns subaccounts with their:
           );
           subaccounts = result.items;
           truncated = result.truncated;
+          partialFailure = result.partialFailure;
         }
 
         if (params.response_format === ResponseFormat.JSON) {
           return {
-            content: [{ type: "text", text: JSON.stringify({ subaccounts, truncated }, null, 2) }]
+            content: [{ type: "text", text: JSON.stringify({ subaccounts, truncated, partialFailure }, null, 2) }]
           };
         }
 
-        if (subaccounts.length === 0) {
+        if (subaccounts.length === 0 && !partialFailure) {
           return {
             content: [{ type: "text", text: `No subaccounts found for Storage Box ${params.id}.` }]
           };
@@ -309,6 +339,9 @@ Returns subaccounts with their:
         }
         if (truncated) {
           lines.push(TRUNCATION_NOTE);
+        }
+        if (partialFailure) {
+          lines.push(`> ⚠️ Partial result: pagination failed mid-stream. ${partialFailure}`);
         }
 
         return {
