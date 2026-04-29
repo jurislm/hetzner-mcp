@@ -3,15 +3,33 @@ import { HetznerAPIError } from "./types.js";
 
 const API_BASE_URL = "https://api.hetzner.cloud/v1";
 const STORAGE_BOX_API_BASE_URL = "https://api.hetzner.com/v1";
+const UNIFIED_TOKEN_CONSOLE_URL = "https://console.hetzner.com/account/security/api-tokens";
 
 let apiClient: AxiosInstance | null = null;
 let storageBoxApiClient: AxiosInstance | null = null;
 
-function createHetznerClient(baseURL: string): AxiosInstance {
+function resolveCloudToken(): string {
   const token = process.env.HETZNER_API_TOKEN;
   if (!token) {
     throw new Error("HETZNER_API_TOKEN environment variable is required");
   }
+  return token;
+}
+
+function resolveUnifiedToken(): string {
+  const token = process.env.HETZNER_API_TOKEN_UNIFIED ?? process.env.HETZNER_API_TOKEN;
+  if (!token) {
+    throw new Error(
+      "Storage Box API requires an account-level token.\n" +
+      "Set HETZNER_API_TOKEN_UNIFIED (preferred) or HETZNER_API_TOKEN.\n" +
+      `Generate a unified-API token at: ${UNIFIED_TOKEN_CONSOLE_URL}\n` +
+      "Note: Cloud-project tokens (console.hetzner.cloud) do NOT authenticate against the unified API."
+    );
+  }
+  return token;
+}
+
+function createHetznerClient(baseURL: string, token: string): AxiosInstance {
   return axios.create({
     baseURL,
     timeout: 30000,
@@ -25,14 +43,14 @@ function createHetznerClient(baseURL: string): AxiosInstance {
 
 export function getApiClient(): AxiosInstance {
   if (!apiClient) {
-    apiClient = createHetznerClient(API_BASE_URL);
+    apiClient = createHetznerClient(API_BASE_URL, resolveCloudToken());
   }
   return apiClient;
 }
 
 export function getStorageBoxApiClient(): AxiosInstance {
   if (!storageBoxApiClient) {
-    storageBoxApiClient = createHetznerClient(STORAGE_BOX_API_BASE_URL);
+    storageBoxApiClient = createHetznerClient(STORAGE_BOX_API_BASE_URL, resolveUnifiedToken());
   }
   return storageBoxApiClient;
 }
@@ -78,7 +96,7 @@ export function handleApiError(error: unknown): string {
 
       switch (status) {
         case 401:
-          return "Error: Authentication failed. Please check your HETZNER_API_TOKEN.";
+          return "Error: Authentication failed. Please check your HETZNER_API_TOKEN (or HETZNER_API_TOKEN_UNIFIED for Storage Box endpoints).";
         case 403:
           return `Error: Permission denied. ${hetznerError?.message || "You don't have access to this resource."}`;
         case 404:
@@ -106,4 +124,10 @@ export function handleApiError(error: unknown): string {
   }
 
   return "Error: An unexpected error occurred.";
+}
+
+// Test-only reset hook for clearing cached clients between tests.
+export function __resetClientsForTesting(): void {
+  apiClient = null;
+  storageBoxApiClient = null;
 }

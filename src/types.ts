@@ -186,11 +186,26 @@ export interface HetznerStorageBoxSubaccount {
   samba: boolean;
   external_reachability: boolean;
   readonly: boolean;
-  comment: string;
+  comment: string | null;
+}
+
+// Pagination envelope returned by Hetzner unified API list endpoints.
+export interface HetznerPagination {
+  page: number;
+  per_page: number;
+  previous_page: number | null;
+  next_page: number | null;
+  last_page: number | null;
+  total_entries: number | null;
+}
+
+export interface HetznerMeta {
+  pagination?: HetznerPagination;
 }
 
 export interface ListStorageBoxesResponse {
   storage_boxes: HetznerStorageBox[];
+  meta?: HetznerMeta;
 }
 
 export interface GetStorageBoxResponse {
@@ -199,6 +214,7 @@ export interface GetStorageBoxResponse {
 
 export interface ListStorageBoxSubaccountsResponse {
   subaccounts: HetznerStorageBoxSubaccount[];
+  meta?: HetznerMeta;
 }
 
 // API Error
