@@ -2,8 +2,10 @@ import axios, { AxiosError, AxiosInstance } from "axios";
 import { HetznerAPIError } from "./types.js";
 
 const API_BASE_URL = "https://api.hetzner.cloud/v1";
+const STORAGE_BOX_API_BASE_URL = "https://api.hetzner.com/v1";
 
 let apiClient: AxiosInstance | null = null;
+let storageBoxApiClient: AxiosInstance | null = null;
 
 export function getApiClient(): AxiosInstance {
   if (!apiClient) {
@@ -23,6 +25,42 @@ export function getApiClient(): AxiosInstance {
     });
   }
   return apiClient;
+}
+
+export function getStorageBoxApiClient(): AxiosInstance {
+  if (!storageBoxApiClient) {
+    const token = process.env.HETZNER_API_TOKEN;
+    if (!token) {
+      throw new Error("HETZNER_API_TOKEN environment variable is required");
+    }
+
+    storageBoxApiClient = axios.create({
+      baseURL: STORAGE_BOX_API_BASE_URL,
+      timeout: 30000,
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
+    });
+  }
+  return storageBoxApiClient;
+}
+
+export async function makeStorageBoxApiRequest<T>(
+  endpoint: string,
+  method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
+  data?: unknown,
+  params?: Record<string, unknown>
+): Promise<T> {
+  const client = getStorageBoxApiClient();
+  const response = await client.request<T>({
+    url: endpoint,
+    method,
+    data,
+    params
+  });
+  return response.data;
 }
 
 export async function makeApiRequest<T>(

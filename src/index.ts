@@ -12,6 +12,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { registerReferenceTools } from "./tools/reference.js";
 import { registerSSHKeyTools } from "./tools/ssh-keys.js";
 import { registerServerTools } from "./tools/servers.js";
+import { registerStorageBoxTools } from "./tools/storage-boxes.js";
 
 // Create MCP server instance
 const server = new McpServer({
@@ -23,6 +24,7 @@ const server = new McpServer({
 registerReferenceTools(server);
 registerSSHKeyTools(server);
 registerServerTools(server);
+registerStorageBoxTools(server);
 
 // Main function
 async function main(): Promise<void> {

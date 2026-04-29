@@ -158,6 +158,49 @@ export interface CreateSSHKeyResponse {
   ssh_key: HetznerSSHKey;
 }
 
+// Storage Box types
+export interface HetznerStorageBox {
+  id: number;
+  name: string;
+  login: string;
+  product: string;
+  location: string;
+  quota_bytes: number;
+  used_bytes: number;
+  snapshots_used_bytes: number;
+  ssh: boolean;
+  webdav: boolean;
+  samba: boolean;
+  zfs: boolean;
+  external_reachability: boolean;
+  locked: boolean;
+  cancelled: boolean;
+  paid_until: string | null;
+}
+
+export interface HetznerStorageBoxSubaccount {
+  username: string;
+  home_directory: string;
+  ssh: boolean;
+  webdav: boolean;
+  samba: boolean;
+  external_reachability: boolean;
+  readonly: boolean;
+  comment: string;
+}
+
+export interface ListStorageBoxesResponse {
+  storage_boxes: HetznerStorageBox[];
+}
+
+export interface GetStorageBoxResponse {
+  storage_box: HetznerStorageBox;
+}
+
+export interface ListStorageBoxSubaccountsResponse {
+  subaccounts: HetznerStorageBoxSubaccount[];
+}
+
 // API Error
 export interface HetznerAPIError {
   error: {
