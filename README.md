@@ -178,6 +178,24 @@ Your API token is powerful - anyone with it can create/delete servers in your pr
 4. **Delete unused tokens** in the Hetzner console
 5. **Review what Claude is doing** before confirming destructive actions
 
+### Storage Boxes — Different Token Required
+
+Storage Box tools (`hetzner_list_storage_boxes`, `hetzner_get_storage_box`, `hetzner_list_storage_box_subaccounts`) use Hetzner's **unified API** at `api.hetzner.com/v1`, which is **not** the same as the Cloud API used by all the other tools. The two APIs accept different token classes:
+
+| Tool category | API endpoint | Token source |
+|---|---|---|
+| Servers, SSH keys, reference | `api.hetzner.cloud/v1` | [Cloud project tokens](https://console.hetzner.cloud) |
+| Storage Boxes | `api.hetzner.com/v1` | [Account-level unified tokens](https://console.hetzner.com/account/security/api-tokens) |
+
+**A Cloud-project token does NOT authenticate against the unified API.** If you only set `HETZNER_API_TOKEN` to a Cloud token, Storage Box tools will return `401 Unauthorized`.
+
+**Two ways to configure**:
+
+1. **Single unified token (simplest)**: Generate a unified token from `console.hetzner.com/account/security/api-tokens` and set `HETZNER_API_TOKEN` to it. The unified token authenticates against both APIs.
+2. **Separate tokens (recommended for least-privilege)**: Set `HETZNER_API_TOKEN` to a Cloud-project token AND `HETZNER_API_TOKEN_UNIFIED` to a unified token. The Storage Box client will prefer `HETZNER_API_TOKEN_UNIFIED`.
+
+If neither variable is set when a Storage Box tool is invoked, you'll get a clear error pointing at the unified-token console URL.
+
 ---
 
 ## Getting an API Token
@@ -322,7 +340,7 @@ Once configured, you can talk to Claude naturally:
 
 ---
 
-## Available Tools (14 total)
+## Available Tools (17 total)
 
 ### Server Tools (7)
 | Tool | What it does |
@@ -349,6 +367,13 @@ Once configured, you can talk to Claude naturally:
 | `hetzner_list_server_types` | Shows available sizes and prices |
 | `hetzner_list_images` | Shows available operating systems |
 | `hetzner_list_locations` | Shows available datacenters |
+
+### Storage Box Tools (3) — uses unified API token (see [Storage Boxes — Different Token Required](#storage-boxes--different-token-required))
+| Tool | What it does |
+|------|--------------|
+| `hetzner_list_storage_boxes` | Lists all Storage Boxes (auto-paginates, cap 5 pages × 50) |
+| `hetzner_get_storage_box` | Shows details of one Storage Box |
+| `hetzner_list_storage_box_subaccounts` | Lists subaccounts for a Storage Box (auto-paginates) |
 
 ---
 
