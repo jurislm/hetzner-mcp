@@ -5,15 +5,15 @@ Hetzner Cloud 管理 MCP Server，提供 17 個工具用於伺服器管理（建
 ## 常用命令
 
 ```bash
-npm install          # 安裝依賴（此 repo 用 npm，非 bun）
-npm run build        # 編譯 TypeScript 到 dist/
-npm run dev          # 開發模式（tsx watch，stdio transport）
-npm run lint         # ESLint 檢查（max-warnings=0）
-npm run test         # Vitest 單元測試（一次執行）
-npm run test:watch   # Vitest 監看模式
+bun install          # 安裝依賴
+bun run build        # 編譯 TypeScript 到 dist/
+bun run dev          # 開發模式（bun --watch，stdio transport）
+bun run lint         # ESLint 檢查（max-warnings=0）
+bun run test         # Vitest 單元測試（一次執行）
+bun run test:watch   # Vitest 監看模式
 
 # 本地執行
-HETZNER_API_TOKEN="token" node dist/index.js
+HETZNER_API_TOKEN="token" bun dist/index.js
 ```
 
 ## Git 分支規範
@@ -96,4 +96,4 @@ src/
 
 1. PR `develop` → `main` merge
 2. Release Please 自動建立版本 PR
-3. 合併版本 PR 後，**手動執行** `npm publish --access public`
+3. 合併版本 PR 後，**手動執行** `bun publish --access public`
