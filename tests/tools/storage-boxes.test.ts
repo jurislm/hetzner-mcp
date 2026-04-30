@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ZodError } from "zod";
 
 vi.mock("../../src/api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api.js")>();
@@ -12,8 +13,10 @@ import {
   formatBytes,
   formatStorageBox,
   formatSubaccount,
-  paginatedFetch
+  paginatedFetch,
+  registerStorageBoxTools
 } from "../../src/tools/storage-boxes.js";
+import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { makeStorageBoxApiRequest } from "../../src/api.js";
 import {
   HetznerStorageBox,
@@ -249,7 +252,7 @@ describe("paginatedFetch", () => {
     expect(mockedRequest).toHaveBeenCalledTimes(1);
   });
 
-  it("returns partial results with partialFailure on mid-stream failure", async () => {
+  it("returns partial results with structured partialFailure on mid-stream failure", async () => {
     mockedRequest
       .mockResolvedValueOnce(pageResponse([makeBox(1), makeBox(2)], 2))
       .mockRejectedValueOnce(new Error("page-2 boom"));
@@ -263,7 +266,200 @@ describe("paginatedFetch", () => {
     expect(result.items.map((b) => b.id)).toEqual([1, 2]);
     expect(result.truncated).toBe(false);
     expect(result.partialFailure).toBeDefined();
-    expect(result.partialFailure).toContain("page-2 boom");
+    expect(result.partialFailure?.message).toContain("page-2 boom");
+    expect(result.partialFailure?.kind).toBe("other"); // generic Error → "other"
+    expect(result.partialFailure?.pagesSucceeded).toBe(1); // 1 page succeeded before page-2 failed
     expect(mockedRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("propagates ZodError mid-stream instead of returning partial (round 3 C-1)", async () => {
+    mockedRequest
+      .mockResolvedValueOnce(pageResponse([makeBox(1), makeBox(2)], 2))
+      .mockRejectedValueOnce(new ZodError([
+        { code: "invalid_type", path: ["storage_boxes", 0, "id"], message: "expected number", input: "x", expected: "number" }
+      ]));
+
+    await expect(
+      paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+        "/storage_boxes",
+        ListStorageBoxesResponseSchema,
+        (r) => r.storage_boxes
+      )
+    ).rejects.toBeInstanceOf(ZodError);
+
+    expect(mockedRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("classifies axios HTTP error as 'http' kind in partialFailure", async () => {
+    const httpError = Object.assign(new Error("503"), { response: { status: 503 }, isAxiosError: true });
+    mockedRequest
+      .mockResolvedValueOnce(pageResponse([makeBox(1)], 2))
+      .mockRejectedValueOnce(httpError);
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      ListStorageBoxesResponseSchema,
+      (r) => r.storage_boxes
+    );
+
+    expect(result.partialFailure?.kind).toBe("http");
+    expect(result.partialFailure?.pagesSucceeded).toBe(1);
+  });
+
+  it("classifies axios network error as 'network' kind in partialFailure", async () => {
+    const netError = Object.assign(new Error("ECONNRESET"), { code: "ECONNRESET", isAxiosError: true });
+    mockedRequest
+      .mockResolvedValueOnce(pageResponse([makeBox(1)], 2))
+      .mockRejectedValueOnce(netError);
+
+    const result = await paginatedFetch<ListStorageBoxesResponse, HetznerStorageBox>(
+      "/storage_boxes",
+      ListStorageBoxesResponseSchema,
+      (r) => r.storage_boxes
+    );
+
+    expect(result.partialFailure?.kind).toBe("network");
+  });
+});
+
+// I-7: Tool handler tests — exercise the registered handlers (happy path,
+// error path, JSON vs markdown, partialFailure rendering).
+type ToolHandler = (params: unknown) => Promise<{ content: { type: string; text: string }[]; isError?: boolean }>;
+
+interface CapturedTool {
+  name: string;
+  handler: ToolHandler;
+}
+
+function captureRegisteredTools(): CapturedTool[] {
+  const captured: CapturedTool[] = [];
+  const fakeServer = {
+    registerTool: vi.fn((name: string, _opts: unknown, handler: ToolHandler) => {
+      captured.push({ name, handler });
+    })
+  };
+  registerStorageBoxTools(fakeServer as unknown as McpServer);
+  return captured;
+}
+
+describe("registerStorageBoxTools — handler integration (I-7)", () => {
+  it("registers exactly 3 tools with the expected names", () => {
+    const tools = captureRegisteredTools();
+    expect(tools.map((t) => t.name)).toEqual([
+      "hetzner_list_storage_boxes",
+      "hetzner_get_storage_box",
+      "hetzner_list_storage_box_subaccounts"
+    ]);
+  });
+
+  it("hetzner_list_storage_boxes returns markdown with formatted boxes on happy path", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(1), makeBox(2)], null));
+
+    const result = await handler({ response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("# Storage Boxes");
+    expect(result.content[0].text).toContain("Found 2 storage box(es)");
+    expect(result.content[0].text).toContain("box-1");
+    expect(result.content[0].text).toContain("box-2");
+  });
+
+  it("hetzner_list_storage_boxes returns isError: true on first-page failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("network down"));
+
+    const result = await handler({ response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("network down");
+  });
+
+  it("hetzner_list_storage_boxes renders structured partialFailure in markdown", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest
+      .mockResolvedValueOnce(pageResponse([makeBox(1)], 2))
+      .mockRejectedValueOnce(new Error("page-2 down"));
+
+    const result = await handler({ response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined(); // partial success, not an error
+    expect(result.content[0].text).toContain("box-1");
+    expect(result.content[0].text).toContain("Partial result");
+    expect(result.content[0].text).toContain("after 1 page(s)");
+    expect(result.content[0].text).toContain("(other)");
+  });
+
+  it("hetzner_list_storage_boxes JSON format includes truncated and partialFailure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(1)], null));
+
+    const result = await handler({ response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.storage_boxes).toHaveLength(1);
+    expect(parsed.truncated).toBe(false);
+  });
+
+  it("hetzner_list_storage_boxes empty result returns 'No Storage Boxes found.'", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([], null));
+
+    const result = await handler({ response_format: "markdown" });
+
+    expect(result.content[0].text).toBe("No Storage Boxes found.");
+  });
+
+  it("hetzner_list_storage_boxes single-page mode bypasses paginatedFetch loop", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    // Fixture has next_page: 5 but single-page mode should ignore it.
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(7)], 5));
+
+    const result = await handler({ response_format: "markdown", page: 2, per_page: 25 });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Found 1 storage box(es)");
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("hetzner_get_storage_box returns markdown for one box", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: makeBox(99) });
+
+    const result = await handler({ id: 99, response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("# Storage Box Details");
+    expect(result.content[0].text).toContain("box-99");
+  });
+
+  it("hetzner_get_storage_box returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_storage_box")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 99, response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it("hetzner_list_storage_box_subaccounts empty result returns id-specific message", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 42, response_format: "markdown" });
+
+    expect(result.content[0].text).toBe("No subaccounts found for Storage Box 42.");
   });
 });

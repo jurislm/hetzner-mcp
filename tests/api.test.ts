@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { AxiosError, AxiosHeaders } from "axios";
+import axios, { AxiosError, AxiosHeaders } from "axios";
+import { z } from "zod";
 import {
   getApiClient,
   getStorageBoxApiClient,
   handleApiError,
+  makeStorageBoxApiRequest,
   __resetClientsForTesting
 } from "../src/api.js";
 import { ListStorageBoxesResponseSchema } from "../src/types.js";
@@ -41,14 +43,15 @@ describe("resolveUnifiedToken (via getStorageBoxApiClient)", () => {
   });
 
   it("falls back to HETZNER_API_TOKEN when HETZNER_API_TOKEN_UNIFIED is unset", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const stderrWrite = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     vi.stubEnv("HETZNER_API_TOKEN_UNIFIED", "");
     vi.stubEnv("HETZNER_API_TOKEN", "fallback-token");
     const client = getStorageBoxApiClient();
     expect(client.defaults.headers["Authorization"]).toBe("Bearer fallback-token");
-    expect(warn).toHaveBeenCalledOnce();
-    expect(warn.mock.calls[0][0]).toContain("HETZNER_API_TOKEN_UNIFIED is not set");
-    expect(warn.mock.calls[0][0]).toContain("console.hetzner.com/account/security/api-tokens");
+    expect(stderrWrite).toHaveBeenCalledOnce();
+    const message = stderrWrite.mock.calls[0][0] as string;
+    expect(message).toContain("HETZNER_API_TOKEN_UNIFIED is not set");
+    expect(message).toContain("console.hetzner.com/account/security/api-tokens");
   });
 
   it("prefers HETZNER_API_TOKEN_UNIFIED over HETZNER_API_TOKEN when both are set", () => {
@@ -182,6 +185,51 @@ describe("handleApiError — non-axios errors", () => {
   });
 });
 
+describe("handleApiError — extractHetznerErrorMessage edge cases (I-6)", () => {
+  it("returns default text when error.response.data.error is null", () => {
+    const out = handleApiError(makeAxiosResponseError(403, { error: null }));
+    expect(out).toContain("Permission denied");
+    expect(out).toContain("You don't have access");
+    expect(out).not.toContain("undefined");
+    expect(out).not.toContain("null");
+  });
+
+  it("returns default text when error.message is non-string (e.g., number)", () => {
+    const out = handleApiError(makeAxiosResponseError(422, { error: { message: 42 } }));
+    expect(out).toContain("Invalid request");
+    expect(out).toContain("Please check your parameters");
+    expect(out).not.toContain("42");
+  });
+
+  it("returns default text when error key is present but its value is non-object", () => {
+    const out = handleApiError(makeAxiosResponseError(403, { error: "string-not-object" }));
+    expect(out).toContain("Permission denied");
+    expect(out).not.toContain("string-not-object");
+  });
+});
+
+describe("__resetClientsForTesting — production guard (I-5)", () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) {
+      delete process.env.NODE_ENV;
+    } else {
+      process.env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("throws when NODE_ENV is 'production' instead of silently returning", () => {
+    process.env.NODE_ENV = "production";
+    expect(() => __resetClientsForTesting()).toThrowError(/must not be called in production/);
+  });
+
+  it("works normally in test/development env", () => {
+    process.env.NODE_ENV = "test";
+    expect(() => __resetClientsForTesting()).not.toThrow();
+  });
+});
+
 describe("handleApiError — ZodError (C-1: API boundary mismatch)", () => {
   it("formats ZodError as 'unexpected response shape' with the failing path", () => {
     const result = ListStorageBoxesResponseSchema.safeParse({
@@ -208,5 +256,74 @@ describe("handleApiError — ZodError (C-1: API boundary mismatch)", () => {
       const out = handleApiError(result.error);
       expect(out).toContain("unexpected response shape");
     }
+  });
+});
+
+// I-8: end-to-end test for makeStorageBoxApiRequest — proves that
+// schema.parse actually runs inside the function (mock-at-axios layer
+// instead of mock-at-api layer used elsewhere).
+describe("makeStorageBoxApiRequest schema validation (I-8 — end-to-end)", () => {
+  beforeEach(() => {
+    __resetClientsForTesting();
+    vi.stubEnv("HETZNER_API_TOKEN_UNIFIED", "test-token");
+    vi.stubEnv("HETZNER_API_TOKEN", "");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    __resetClientsForTesting();
+  });
+
+  function stubAxiosWithResponse(data: unknown): void {
+    const fakeRequest = vi.fn().mockResolvedValue({ data });
+    vi.spyOn(axios, "create").mockReturnValue({
+      request: fakeRequest,
+      defaults: { headers: {} }
+    } as unknown as ReturnType<typeof axios.create>);
+  }
+
+  it("validates response and returns parsed data on schema match", async () => {
+    stubAxiosWithResponse({
+      storage_boxes: [],
+      meta: { pagination: { next_page: null } }
+    });
+    const schema = z.object({
+      storage_boxes: z.array(z.unknown()),
+      meta: z.object({ pagination: z.object({ next_page: z.number().nullable() }) }).optional()
+    });
+
+    const result = await makeStorageBoxApiRequest("/storage_boxes", schema);
+
+    expect(result).toEqual({
+      storage_boxes: [],
+      meta: { pagination: { next_page: null } }
+    });
+  });
+
+  it("throws ZodError when response shape does not match schema", async () => {
+    stubAxiosWithResponse({ unexpected: "shape" });
+    const schema = z.object({ storage_boxes: z.array(z.unknown()) });
+
+    await expect(
+      makeStorageBoxApiRequest("/storage_boxes", schema)
+    ).rejects.toBeInstanceOf(z.ZodError);
+  });
+
+  it("ZodError from makeStorageBoxApiRequest formats correctly through handleApiError", async () => {
+    stubAxiosWithResponse({ wrong_key: 123 });
+    const schema = ListStorageBoxesResponseSchema;
+
+    let caught: unknown;
+    try {
+      await makeStorageBoxApiRequest("/storage_boxes", schema);
+    } catch (e) {
+      caught = e;
+    }
+
+    expect(caught).toBeInstanceOf(z.ZodError);
+    const formatted = handleApiError(caught);
+    expect(formatted).toContain("unexpected response shape");
+    expect(formatted).toContain("storage_boxes");
   });
 });

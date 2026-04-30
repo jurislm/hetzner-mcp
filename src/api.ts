@@ -23,13 +23,17 @@ function resolveUnifiedToken(): string {
   }
   const fallback = process.env.HETZNER_API_TOKEN;
   if (fallback) {
-    // I-2: surface fallback to the user — Cloud-project tokens often won't
-    // authenticate against the unified API, so the request will likely 401.
-    // We log once (cached client means this fires only on first creation).
-    console.warn(
-      "[hetzner-mcp] HETZNER_API_TOKEN_UNIFIED is not set; falling back to HETZNER_API_TOKEN " +
+    // I-2 + I-4: surface fallback to the operator — Cloud-project tokens
+    // often won't authenticate against the unified API, so the request will
+    // likely 401. We write directly to process.stderr (more explicit than
+    // console.warn). Note: in stdio MCP transports, child-process stderr
+    // may be discarded by the host (Claude Desktop, Cursor, etc.). Operators
+    // who can't see the warning should set NODE_OPTIONS or capture stderr.
+    // See README "Storage Boxes — Different Token Required".
+    process.stderr.write(
+      "[hetzner-mcp] WARN: HETZNER_API_TOKEN_UNIFIED is not set; falling back to HETZNER_API_TOKEN " +
       "for the unified Storage Box API. If you see 401 errors, generate an account-level " +
-      `unified token at: ${UNIFIED_TOKEN_CONSOLE_URL}`
+      `unified token at: ${UNIFIED_TOKEN_CONSOLE_URL}\n`
     );
     return fallback;
   }
@@ -87,20 +91,24 @@ export async function makeStorageBoxApiRequest<T>(
   return schema.parse(response.data);
 }
 
+// C-2: Cloud API responses are now validated with a Zod schema at the
+// boundary, matching makeStorageBoxApiRequest. An unexpected API shape
+// throws ZodError (handled in handleApiError).
 export async function makeApiRequest<T>(
   endpoint: string,
+  schema: z.ZodType<T>,
   method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
   data?: unknown,
   params?: Record<string, unknown>
 ): Promise<T> {
   const client = getApiClient();
-  const response = await client.request<T>({
+  const response = await client.request<unknown>({
     url: endpoint,
     method,
     data,
     params
   });
-  return response.data;
+  return schema.parse(response.data);
 }
 
 // C-4: narrow error.response.data before treating it as HetznerAPIError.
@@ -177,11 +185,12 @@ export function handleApiError(error: unknown): string {
   return "Error: An unexpected error occurred.";
 }
 
-// I-4: Test-only reset hook for clearing cached clients between tests.
-// Guarded against accidental production use.
+// I-5: Test-only reset hook for clearing cached clients between tests.
+// Throws in production so an accidental call surfaces immediately instead
+// of silently no-op'ing and leaving the test author with stale state.
 export function __resetClientsForTesting(): void {
   if (process.env.NODE_ENV === "production") {
-    return;
+    throw new Error("__resetClientsForTesting must not be called in production");
   }
   apiClient = null;
   storageBoxApiClient = null;

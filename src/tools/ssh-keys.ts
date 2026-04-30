@@ -3,9 +3,9 @@ import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import {
   ResponseFormat,
-  ListSSHKeysResponse,
-  GetSSHKeyResponse,
-  CreateSSHKeyResponse,
+  ListSSHKeysResponseSchema,
+  GetSSHKeyResponseSchema,
+  CreateSSHKeyResponseSchema,
   HetznerSSHKey
 } from "../types.js";
 
@@ -45,7 +45,7 @@ SSH keys are used to authenticate when connecting to servers.`,
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ListSSHKeysResponse>("/ssh_keys");
+        const data = await makeApiRequest("/ssh_keys", ListSSHKeysResponseSchema);
         const keys = data.ssh_keys;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -97,7 +97,7 @@ SSH keys are used to authenticate when connecting to servers.`,
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<GetSSHKeyResponse>(`/ssh_keys/${params.id}`);
+        const data = await makeApiRequest(`/ssh_keys/${params.id}`, GetSSHKeyResponseSchema);
         const key = data.ssh_key;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -155,7 +155,7 @@ Args:
           requestBody.labels = params.labels;
         }
 
-        const data = await makeApiRequest<CreateSSHKeyResponse>("/ssh_keys", "POST", requestBody);
+        const data = await makeApiRequest("/ssh_keys", CreateSSHKeyResponseSchema, "POST", requestBody);
         const key = data.ssh_key;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -204,7 +204,8 @@ They will continue to work with the key.`,
     },
     async (params) => {
       try {
-        await makeApiRequest(`/ssh_keys/${params.id}`, "DELETE");
+        // DELETE returns 204 No Content; we don't care about the body shape.
+        await makeApiRequest(`/ssh_keys/${params.id}`, z.unknown(), "DELETE");
 
         return {
           content: [{ type: "text", text: `SSH key ${params.id} has been deleted.` }]

@@ -3,10 +3,10 @@ import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import {
   ResponseFormat,
-  ListServersResponse,
-  GetServerResponse,
-  CreateServerResponse,
-  ServerActionResponse,
+  ListServersResponseSchema,
+  GetServerResponseSchema,
+  CreateServerResponseSchema,
+  ServerActionResponseSchema,
   HetznerServer
 } from "../types.js";
 
@@ -72,7 +72,7 @@ Returns all servers with their:
           queryParams.label_selector = params.label_selector;
         }
 
-        const data = await makeApiRequest<ListServersResponse>("/servers", "GET", undefined, queryParams);
+        const data = await makeApiRequest("/servers", ListServersResponseSchema, "GET", undefined, queryParams);
         const servers = data.servers;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -124,7 +124,7 @@ Returns all servers with their:
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<GetServerResponse>(`/servers/${params.id}`);
+        const data = await makeApiRequest(`/servers/${params.id}`, GetServerResponseSchema);
         const srv = data.server;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -203,7 +203,7 @@ Returns the new server details including IP address and root password (if no SSH
           requestBody.labels = params.labels;
         }
 
-        const data = await makeApiRequest<CreateServerResponse>("/servers", "POST", requestBody);
+        const data = await makeApiRequest("/servers", CreateServerResponseSchema, "POST", requestBody);
         const srv = data.server;
         const rootPassword = data.root_password;
 
@@ -263,7 +263,7 @@ Returns the new server details including IP address and root password (if no SSH
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ServerActionResponse>(`/servers/${params.id}`, "DELETE");
+        const data = await makeApiRequest(`/servers/${params.id}`, ServerActionResponseSchema, "DELETE");
 
         return {
           content: [{
@@ -298,8 +298,9 @@ Returns the new server details including IP address and root password (if no SSH
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ServerActionResponse>(
+        const data = await makeApiRequest(
           `/servers/${params.id}/actions/poweron`,
+          ServerActionResponseSchema,
           "POST"
         );
 
@@ -338,8 +339,9 @@ This is like pulling the power cord. For a graceful shutdown, SSH into the serve
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ServerActionResponse>(
+        const data = await makeApiRequest(
           `/servers/${params.id}/actions/poweroff`,
+          ServerActionResponseSchema,
           "POST"
         );
 
@@ -378,8 +380,9 @@ This is like pressing the reset button. For a graceful reboot, SSH into the serv
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ServerActionResponse>(
+        const data = await makeApiRequest(
           `/servers/${params.id}/actions/reboot`,
+          ServerActionResponseSchema,
           "POST"
         );
 

@@ -10,161 +10,189 @@ export enum ResponseFormat {
 
 // Utility: keys of T whose value type is exactly `boolean`. Used to constrain
 // arrays like STORAGE_BOX_PROTOCOLS so a typo (e.g. "name") fails typecheck.
+//
+// NOTE: This excludes nullable booleans (`boolean | null`) by design — the
+// runtime check `obj[key] === true` only makes sense for non-nullable booleans.
+// If a schema field becomes `z.boolean().nullable()`, it will silently fall
+// out of the protocol list. Keep boolean fields non-nullable in schemas, or
+// widen this constraint to `T[K] extends boolean | null` if nulls are needed.
 export type BooleanKeys<T> = {
   [K in keyof T]-?: T[K] extends boolean ? K : never;
 }[keyof T];
 
-// Server types
-export interface HetznerServer {
-  id: number;
-  name: string;
-  status: "running" | "initializing" | "starting" | "stopping" | "off" | "deleting" | "rebuilding" | "migrating" | "unknown";
-  public_net: {
-    ipv4: {
-      ip: string;
-    } | null;
-    ipv6: {
-      ip: string;
-    } | null;
-  };
-  server_type: {
-    id: number;
-    name: string;
-    description: string;
-    cores: number;
-    memory: number;
-    disk: number;
-  };
-  datacenter: {
-    id: number;
-    name: string;
-    description: string;
-    location: {
-      id: number;
-      name: string;
-      city: string;
-      country: string;
-    };
-  };
-  image: {
-    id: number;
-    name: string;
-    description: string;
-    os_flavor: string;
-    os_version: string;
-  } | null;
-  labels: Record<string, string>;
-  created: string;
-}
+// =====================================================================
+// Cloud API — Zod schemas at the boundary (C-2 from /review-pr round 3).
+// Same rationale as the Storage Box schemas: makeApiRequest validates
+// every response with .parse(), so unexpected API shapes throw ZodError
+// instead of silently coercing to undefined downstream.
+// =====================================================================
 
-export interface HetznerServerType {
-  id: number;
-  name: string;
-  description: string;
-  cores: number;
-  memory: number;
-  disk: number;
-  prices: {
-    location: string;
-    price_hourly: {
-      net: string;
-      gross: string;
-    };
-    price_monthly: {
-      net: string;
-      gross: string;
-    };
-  }[];
-  architecture: string;
-  cpu_type: string;
-}
+export const HetznerActionSchema = z.object({
+  id: z.number(),
+  command: z.string(),
+  status: z.enum(["running", "success", "error"]),
+  progress: z.number(),
+  started: z.string(),
+  finished: z.string().nullable(),
+  error: z.object({
+    code: z.string(),
+    message: z.string()
+  }).nullable()
+});
+export type HetznerAction = z.infer<typeof HetznerActionSchema>;
 
-export interface HetznerImage {
-  id: number;
-  name: string;
-  description: string;
-  os_flavor: string;
-  os_version: string;
-  type: "system" | "snapshot" | "backup" | "app";
-  status: "available" | "creating" | "unavailable";
-  architecture: string;
-}
+export const HetznerServerSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  status: z.enum([
+    "running",
+    "initializing",
+    "starting",
+    "stopping",
+    "off",
+    "deleting",
+    "rebuilding",
+    "migrating",
+    "unknown"
+  ]),
+  public_net: z.object({
+    ipv4: z.object({ ip: z.string() }).nullable(),
+    ipv6: z.object({ ip: z.string() }).nullable()
+  }),
+  server_type: z.object({
+    id: z.number(),
+    name: z.string(),
+    description: z.string(),
+    cores: z.number(),
+    memory: z.number(),
+    disk: z.number()
+  }),
+  datacenter: z.object({
+    id: z.number(),
+    name: z.string(),
+    description: z.string(),
+    location: z.object({
+      id: z.number(),
+      name: z.string(),
+      city: z.string(),
+      country: z.string()
+    })
+  }),
+  image: z.object({
+    id: z.number(),
+    name: z.string(),
+    description: z.string(),
+    os_flavor: z.string(),
+    os_version: z.string()
+  }).nullable(),
+  labels: z.record(z.string(), z.string()),
+  created: z.string()
+});
+export type HetznerServer = z.infer<typeof HetznerServerSchema>;
 
-export interface HetznerLocation {
-  id: number;
-  name: string;
-  description: string;
-  country: string;
-  city: string;
-  latitude: number;
-  longitude: number;
-  network_zone: string;
-}
+export const HetznerServerTypeSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string(),
+  cores: z.number(),
+  memory: z.number(),
+  disk: z.number(),
+  prices: z.array(z.object({
+    location: z.string(),
+    price_hourly: z.object({ net: z.string(), gross: z.string() }),
+    price_monthly: z.object({ net: z.string(), gross: z.string() })
+  })),
+  architecture: z.string(),
+  cpu_type: z.string()
+});
+export type HetznerServerType = z.infer<typeof HetznerServerTypeSchema>;
 
-export interface HetznerSSHKey {
-  id: number;
-  name: string;
-  fingerprint: string;
-  public_key: string;
-  labels: Record<string, string>;
-  created: string;
-}
+export const HetznerImageSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string(),
+  os_flavor: z.string(),
+  os_version: z.string(),
+  type: z.enum(["system", "snapshot", "backup", "app"]),
+  status: z.enum(["available", "creating", "unavailable"]),
+  architecture: z.string()
+});
+export type HetznerImage = z.infer<typeof HetznerImageSchema>;
 
-export interface HetznerAction {
-  id: number;
-  command: string;
-  status: "running" | "success" | "error";
-  progress: number;
-  started: string;
-  finished: string | null;
-  error: {
-    code: string;
-    message: string;
-  } | null;
-}
+export const HetznerLocationSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string(),
+  country: z.string(),
+  city: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  network_zone: z.string()
+});
+export type HetznerLocation = z.infer<typeof HetznerLocationSchema>;
+
+export const HetznerSSHKeySchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  fingerprint: z.string(),
+  public_key: z.string(),
+  labels: z.record(z.string(), z.string()),
+  created: z.string()
+});
+export type HetznerSSHKey = z.infer<typeof HetznerSSHKeySchema>;
 
 // API Response wrappers
-export interface ListServersResponse {
-  servers: HetznerServer[];
-}
+export const ListServersResponseSchema = z.object({
+  servers: z.array(HetznerServerSchema)
+});
+export type ListServersResponse = z.infer<typeof ListServersResponseSchema>;
 
-export interface GetServerResponse {
-  server: HetznerServer;
-}
+export const GetServerResponseSchema = z.object({
+  server: HetznerServerSchema
+});
+export type GetServerResponse = z.infer<typeof GetServerResponseSchema>;
 
-export interface CreateServerResponse {
-  server: HetznerServer;
-  action: HetznerAction;
-  root_password: string | null;
-}
+export const CreateServerResponseSchema = z.object({
+  server: HetznerServerSchema,
+  action: HetznerActionSchema,
+  root_password: z.string().nullable()
+});
+export type CreateServerResponse = z.infer<typeof CreateServerResponseSchema>;
 
-export interface ServerActionResponse {
-  action: HetznerAction;
-}
+export const ServerActionResponseSchema = z.object({
+  action: HetznerActionSchema
+});
+export type ServerActionResponse = z.infer<typeof ServerActionResponseSchema>;
 
-export interface ListServerTypesResponse {
-  server_types: HetznerServerType[];
-}
+export const ListServerTypesResponseSchema = z.object({
+  server_types: z.array(HetznerServerTypeSchema)
+});
+export type ListServerTypesResponse = z.infer<typeof ListServerTypesResponseSchema>;
 
-export interface ListImagesResponse {
-  images: HetznerImage[];
-}
+export const ListImagesResponseSchema = z.object({
+  images: z.array(HetznerImageSchema)
+});
+export type ListImagesResponse = z.infer<typeof ListImagesResponseSchema>;
 
-export interface ListLocationsResponse {
-  locations: HetznerLocation[];
-}
+export const ListLocationsResponseSchema = z.object({
+  locations: z.array(HetznerLocationSchema)
+});
+export type ListLocationsResponse = z.infer<typeof ListLocationsResponseSchema>;
 
-export interface ListSSHKeysResponse {
-  ssh_keys: HetznerSSHKey[];
-}
+export const ListSSHKeysResponseSchema = z.object({
+  ssh_keys: z.array(HetznerSSHKeySchema)
+});
+export type ListSSHKeysResponse = z.infer<typeof ListSSHKeysResponseSchema>;
 
-export interface GetSSHKeyResponse {
-  ssh_key: HetznerSSHKey;
-}
+export const GetSSHKeyResponseSchema = z.object({
+  ssh_key: HetznerSSHKeySchema
+});
+export type GetSSHKeyResponse = z.infer<typeof GetSSHKeyResponseSchema>;
 
-export interface CreateSSHKeyResponse {
-  ssh_key: HetznerSSHKey;
-}
+export const CreateSSHKeyResponseSchema = z.object({
+  ssh_key: HetznerSSHKeySchema
+});
+export type CreateSSHKeyResponse = z.infer<typeof CreateSSHKeyResponseSchema>;
 
 // Storage Box — Zod schemas at API boundary (C-1).
 // These schemas are validated at runtime via makeStorageBoxApiRequest, so
@@ -173,13 +201,16 @@ export interface CreateSSHKeyResponse {
 // keep a single source of truth.
 
 // Pagination envelope returned by Hetzner unified API list endpoints.
+// Only `next_page` is consumed by paginatedFetch; the other fields are made
+// optional so an API response that omits them does not throw ZodError on
+// data we never read (I-1 from /review-pr round 3).
 export const HetznerPaginationSchema = z.object({
-  page: z.number(),
-  per_page: z.number(),
-  previous_page: z.number().nullable(),
+  page: z.number().optional(),
+  per_page: z.number().optional(),
+  previous_page: z.number().nullable().optional(),
   next_page: z.number().nullable(),
-  last_page: z.number().nullable(),
-  total_entries: z.number().nullable()
+  last_page: z.number().nullable().optional(),
+  total_entries: z.number().nullable().optional()
 });
 export type HetznerPagination = z.infer<typeof HetznerPaginationSchema>;
 

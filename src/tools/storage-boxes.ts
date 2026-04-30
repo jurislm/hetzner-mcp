@@ -78,19 +78,43 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
   return lines.join("\n");
 }
 
+// I-3: partialFailure is structured so callers can route by error kind
+// (retry on network, alert on schema mismatch, etc.) instead of parsing
+// a flat string.
+export type PartialFailureKind = "zod" | "network" | "http" | "other";
+
+export interface PartialFailure {
+  message: string;
+  kind: PartialFailureKind;
+  pagesSucceeded: number;
+}
+
 export interface PaginatedListResult<T> {
   items: T[];
   truncated: boolean;
-  // I-1: when set, fetching mid-stream failed AFTER at least one page succeeded.
+  // When set, fetching mid-stream failed AFTER at least one page succeeded.
   // The first-page failure path still throws so the caller's catch sees it.
-  partialFailure?: string;
+  partialFailure?: PartialFailure;
 }
 
 type ListExtractor<TResponse, TItem> = (resp: TResponse) => TItem[];
 
+function classifyError(error: unknown): PartialFailureKind {
+  if (error instanceof z.ZodError) return "zod";
+  if (typeof error === "object" && error !== null) {
+    const e = error as { response?: unknown; code?: string };
+    if (e.response !== undefined) return "http";
+    if (typeof e.code === "string") return "network";
+  }
+  return "other";
+}
+
 // I-5: use the named HetznerMeta in the constraint instead of an inline anonymous shape
 // so future changes to the meta envelope propagate automatically.
-// C-1: schema is validated inside makeStorageBoxApiRequest.
+// C-1 (round 2): schema is validated inside makeStorageBoxApiRequest.
+// C-1 (round 3): a ZodError mid-stream means the API returned a structurally
+// different shape on a later page — pages 1..N-1 are no longer trustworthy.
+// Always propagate ZodError, never return partial.
 // Exported for unit testing.
 export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, TItem>(
   endpoint: string,
@@ -117,15 +141,24 @@ export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, T
       pagesFetched += 1;
       nextPage = pageData.meta?.pagination?.next_page ?? null;
     } catch (error) {
+      // ZodError = API contract violation. Pages already fetched were
+      // validated against a now-questionable schema — bail entirely.
+      if (error instanceof z.ZodError) {
+        throw error;
+      }
       // First-page failure → propagate so the caller returns isError: true.
       if (pagesFetched === 0) {
         throw error;
       }
-      // Mid-stream failure → return partial results with the error noted.
+      // Mid-stream non-ZodError → return partial with structured info.
       return {
         items: accumulated,
         truncated: false,
-        partialFailure: handleApiError(error)
+        partialFailure: {
+          message: handleApiError(error),
+          kind: classifyError(error),
+          pagesSucceeded: pagesFetched
+        }
       };
     }
   }
@@ -168,7 +201,7 @@ Returns Storage Boxes with their:
       try {
         let boxes: HetznerStorageBox[];
         let truncated = false;
-        let partialFailure: string | undefined;
+        let partialFailure: PartialFailure | undefined;
 
         if (params.page !== undefined) {
           const data = await makeStorageBoxApiRequest(
@@ -212,7 +245,7 @@ Returns Storage Boxes with their:
           lines.push(TRUNCATION_NOTE);
         }
         if (partialFailure) {
-          lines.push(`> ⚠️ Partial result: pagination failed mid-stream. ${partialFailure}`);
+          lines.push(`> ⚠️ Partial result: pagination failed after ${partialFailure.pagesSucceeded} page(s) (${partialFailure.kind}): ${partialFailure.message}`);
         }
 
         return {
@@ -300,7 +333,7 @@ Returns subaccounts with their:
         const endpoint = `/storage_boxes/${params.id}/subaccounts`;
         let subaccounts: HetznerStorageBoxSubaccount[];
         let truncated = false;
-        let partialFailure: string | undefined;
+        let partialFailure: PartialFailure | undefined;
 
         if (params.page !== undefined) {
           const data = await makeStorageBoxApiRequest(
@@ -349,7 +382,7 @@ Returns subaccounts with their:
           lines.push(TRUNCATION_NOTE);
         }
         if (partialFailure) {
-          lines.push(`> ⚠️ Partial result: pagination failed mid-stream. ${partialFailure}`);
+          lines.push(`> ⚠️ Partial result: pagination failed after ${partialFailure.pagesSucceeded} page(s) (${partialFailure.kind}): ${partialFailure.message}`);
         }
 
         return {
