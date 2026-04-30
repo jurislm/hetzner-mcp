@@ -3,9 +3,9 @@ import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import {
   ResponseFormat,
-  ListServerTypesResponse,
-  ListImagesResponse,
-  ListLocationsResponse,
+  ListServerTypesResponseSchema,
+  ListImagesResponseSchema,
+  ListLocationsResponseSchema,
   HetznerImage,
 } from "../types.js";
 
@@ -39,7 +39,7 @@ Use this to find the right server type when creating a new server.`,
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ListServerTypesResponse>("/server_types");
+        const data = await makeApiRequest("/server_types", ListServerTypesResponseSchema);
         const serverTypes = data.server_types;
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -110,7 +110,7 @@ Use this to find the right image when creating a new server.`,
           queryParams.type = "system"; // Default to system images
         }
 
-        const data = await makeApiRequest<ListImagesResponse>("/images", "GET", undefined, queryParams);
+        const data = await makeApiRequest("/images", ListImagesResponseSchema, "GET", undefined, queryParams);
         const images = data.images.filter(img => img.status === "available");
 
         if (params.response_format === ResponseFormat.JSON) {
@@ -174,7 +174,7 @@ Use this to choose where to deploy your server.`,
     },
     async (params) => {
       try {
-        const data = await makeApiRequest<ListLocationsResponse>("/locations");
+        const data = await makeApiRequest("/locations", ListLocationsResponseSchema);
         const locations = data.locations;
 
         if (params.response_format === ResponseFormat.JSON) {
