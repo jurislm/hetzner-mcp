@@ -1,6 +1,6 @@
 # CLAUDE.md — JurisLM Hetzner MCP Server
 
-Hetzner Cloud 管理 MCP Server，提供 14 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、參考資料）。
+Hetzner Cloud 管理 MCP Server，提供 17 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes）。
 
 ## 常用命令
 
@@ -36,10 +36,11 @@ src/
 └── tools/
     ├── servers.ts     # 7 個伺服器管理工具
     ├── ssh-keys.ts    # 4 個 SSH 金鑰工具
-    └── reference.ts   # 3 個參考資料工具
+    ├── reference.ts   # 3 個參考資料工具
+    └── storage-boxes.ts # 3 個 Storage Boxes 工具
 ```
 
-## 工具清單（14 個）
+## 工具清單（17 個）
 
 ### Servers（7 tools）
 - `hetzner_list_servers` — 列出專案所有伺服器
@@ -61,11 +62,17 @@ src/
 - `hetzner_list_images` — 列出可用 OS 映像檔
 - `hetzner_list_locations` — 列出可用資料中心位置
 
+### Storage Boxes（3 tools）
+- `hetzner_list_storage_boxes` — 列出所有 Storage Box（支援分頁）
+- `hetzner_get_storage_box` — 取得單一 Storage Box 詳情（容量、protocols、狀態）
+- `hetzner_list_storage_box_subaccounts` — 列出 Storage Box 的所有子帳號
+
 ## 環境變數
 
 | 變數 | 必需 | 說明 |
 |------|------|------|
-| `HETZNER_API_TOKEN` | ✓ | Read & Write token，從 Hetzner Cloud Console 生成 |
+| `HETZNER_API_TOKEN` | ✓ | Cloud API token（Read & Write），從 console.hetzner.cloud 生成 |
+| `HETZNER_API_TOKEN_UNIFIED` | 建議 | Unified API token，Storage Box 端點需要此 token；未設定時 fallback 至 `HETZNER_API_TOKEN` |
 
 **注意**：MCP Server 是非互動式子進程，環境變數必須寫入 `~/.zshenv`（非 `~/.zshrc`）。
 
