@@ -1,20 +1,53 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Tech stack: TypeScript, Bun, Vitest, MCP SDK (@modelcontextprotocol/sdk), Zod
+  Runtime: Bun (not Node.js) — use `bun -e` for inline scripts, `bun run test` for tests
+  Linter: ESLint with max-warnings=0 and no-explicit-any rule
+  Transport: stdio (MCP server launched as subprocess)
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  Project: Hetzner Cloud MCP Server (hetzner-mcp)
+  Tools: 17 MCP tools across 4 categories (servers, ssh-keys, reference, storage-boxes)
+  Naming: hetzner_ prefix + snake_case (e.g. hetzner_create_server)
+
+  Architecture:
+  - src/index.ts — MCP server entry, imports all tool modules
+  - src/api.ts — Hetzner Cloud REST API client (axios); makeApiRequest for Cloud API,
+                  makeStorageBoxApiRequest for Unified API (Storage Boxes)
+  - src/types.ts — TypeScript interfaces + Zod schemas matching Hetzner API shapes
+  - src/tools/*.ts — Tool definitions using server.registerTool()
+
+  API endpoints:
+  - Cloud API: https://api.hetzner.cloud/v1 — auth: HETZNER_API_TOKEN
+  - Unified API: https://api.hetzner.com/v1 — auth: HETZNER_API_TOKEN_UNIFIED
+    (fallback to HETZNER_API_TOKEN with WARN log; Cloud project tokens may not authenticate)
+
+  Conventions:
+  - Conventional commits: feat/fix/refactor/docs/chore
+  - Branch: develop → PR → main (never push directly to main)
+  - Version managed by Release Please (never edit package.json version manually)
+  - All new tools must have Vitest unit tests (80%+ coverage)
+  - ESLint must pass with 0 warnings before commit
+  - All API responses validated with Zod schema at boundary (C-1/C-2 rules)
+
+  Domain: Hetzner Cloud infrastructure management + Storage Boxes (NAS)
+
+rules:
+  proposal:
+    - Specify which tool category the change affects (servers/ssh-keys/reference/storage-boxes)
+    - Note if the change requires a new API endpoint in api.ts
+    - Note if Storage Boxes: specify whether Unified API or Cloud API is used
+    - Include estimated Hetzner API rate-limit impact for high-frequency tools
+  design:
+    - Define the TypeScript interface + Zod schema additions needed in types.ts
+    - Specify the exact Hetzner API endpoint (method + path + which API base)
+    - Describe error handling strategy (API errors, Zod validation errors, network timeouts)
+  specs:
+    - Write GIVEN/WHEN/THEN in terms of MCP tool inputs and outputs
+    - Include at least one error case (invalid token, resource not found)
+    - Cover both happy path and edge cases for each tool
+    - For Storage Box tools: include pagination edge cases (empty, truncated, partial failure)
+  tasks:
+    - Break tasks into chunks of max 2 hours
+    - Each task must reference the specific file(s) to modify
+    - Include a test task for every implementation task
