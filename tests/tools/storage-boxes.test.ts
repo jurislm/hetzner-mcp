@@ -13,6 +13,8 @@ import {
   formatBytes,
   formatStorageBox,
   formatSubaccount,
+  formatSnapshot,
+  formatAction,
   paginatedFetch,
   registerStorageBoxTools
 } from "../../src/tools/storage-boxes.js";
@@ -21,6 +23,8 @@ import { makeStorageBoxApiRequest } from "../../src/api.js";
 import {
   HetznerStorageBox,
   HetznerStorageBoxSubaccount,
+  HetznerStorageBoxSnapshot,
+  HetznerAction,
   ListStorageBoxesResponse,
   ListStorageBoxesResponseSchema
 } from "../../src/types.js";
@@ -160,7 +164,11 @@ function makeBox(id: number): HetznerStorageBox {
   return { ...baseBox, id, name: `box-${id}` };
 }
 
-function pageResponse(boxes: HetznerStorageBox[], nextPage: number | null): ListStorageBoxesResponse {
+function pageResponse(
+  boxes: HetznerStorageBox[],
+  nextPage: number | null,
+  lastPage: number | null = null
+): ListStorageBoxesResponse {
   return {
     storage_boxes: boxes,
     meta: {
@@ -169,7 +177,7 @@ function pageResponse(boxes: HetznerStorageBox[], nextPage: number | null): List
         per_page: 50,
         previous_page: null,
         next_page: nextPage,
-        last_page: nextPage,
+        last_page: lastPage,
         total_entries: null
       }
     }
@@ -329,26 +337,32 @@ type ToolHandler = (params: unknown) => Promise<{ content: { type: string; text:
 interface CapturedTool {
   name: string;
   handler: ToolHandler;
+  opts: { annotations?: Record<string, unknown>; description?: string };
 }
 
 function captureRegisteredTools(): CapturedTool[] {
   const captured: CapturedTool[] = [];
   const fakeServer = {
-    registerTool: vi.fn((name: string, _opts: unknown, handler: ToolHandler) => {
-      captured.push({ name, handler });
-    })
+    registerTool: vi.fn(
+      (name: string, opts: CapturedTool["opts"], handler: ToolHandler) => {
+        captured.push({ name, handler, opts });
+      }
+    )
   };
   registerStorageBoxTools(fakeServer as unknown as McpServer);
   return captured;
 }
 
 describe("registerStorageBoxTools — handler integration (I-7)", () => {
-  it("registers exactly 3 tools with the expected names", () => {
+  it("registers exactly 6 tools with the expected names", () => {
     const tools = captureRegisteredTools();
     expect(tools.map((t) => t.name)).toEqual([
       "hetzner_list_storage_boxes",
       "hetzner_get_storage_box",
-      "hetzner_list_storage_box_subaccounts"
+      "hetzner_list_storage_box_subaccounts",
+      "hetzner_list_storage_box_snapshots",
+      "hetzner_create_storage_box_snapshot",
+      "hetzner_rollback_storage_box_snapshot"
     ]);
   });
 
@@ -450,6 +464,47 @@ describe("registerStorageBoxTools — handler integration (I-7)", () => {
     expect(result.isError).toBe(true);
   });
 
+  it("hetzner_get_storage_box JSON format returns raw storage_box object", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: makeBox(99) });
+
+    const result = await handler({ id: 99, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.id).toBe(99);
+    expect(parsed.name).toBe("box-99");
+  });
+
+  it("hetzner_list_storage_box_subaccounts single-page mode bypasses pagination loop", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [baseSubaccount],
+      meta: { pagination: { next_page: 5 } }
+    });
+
+    const result = await handler({ id: 1, response_format: "markdown", page: 2, per_page: 25 });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("hetzner_list_storage_box_subaccounts JSON format includes truncated and partialFailure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [baseSubaccount],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 1, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.subaccounts).toHaveLength(1);
+    expect(parsed.truncated).toBe(false);
+  });
+
   it("hetzner_list_storage_box_subaccounts empty result returns id-specific message", async () => {
     const tools = captureRegisteredTools();
     const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
@@ -461,5 +516,298 @@ describe("registerStorageBoxTools — handler integration (I-7)", () => {
     const result = await handler({ id: 42, response_format: "markdown" });
 
     expect(result.content[0].text).toBe("No subaccounts found for Storage Box 42.");
+  });
+});
+
+const baseSnapshot: HetznerStorageBoxSnapshot = {
+  id: 100,
+  name: "snap-100",
+  description: null,
+  stats: { size: 5 * 1024 ** 3 },
+  is_automatic: false,
+  storage_box: 1,
+  created: "2026-05-01T10:00:00+00:00"
+};
+
+const baseAction: HetznerAction = {
+  id: 9001,
+  command: "create_storage_box_snapshot",
+  status: "running",
+  progress: 0,
+  started: "2026-05-01T10:00:00+00:00",
+  finished: null,
+  error: null
+};
+
+describe("formatSnapshot", () => {
+  it("includes core fields and formatted size", () => {
+    const out = formatSnapshot(baseSnapshot);
+    expect(out).toContain("snap-100 (ID: 100)");
+    expect(out).toContain("- **Created**: 2026-05-01");
+    expect(out).not.toContain("T10:00:00");
+    expect(out).toContain("- **Size**: 5.0 GiB");
+    expect(out).toContain("- **Automatic**: no");
+  });
+
+  it("omits description line when null", () => {
+    const out = formatSnapshot({ ...baseSnapshot, description: null });
+    expect(out).not.toContain("Description");
+  });
+
+  it("includes description line when present", () => {
+    const out = formatSnapshot({ ...baseSnapshot, description: "pre-migration" });
+    expect(out).toContain("- **Description**: pre-migration");
+  });
+
+  it("omits Labels line when labels is undefined or empty", () => {
+    expect(formatSnapshot({ ...baseSnapshot, labels: undefined })).not.toContain("Labels");
+    expect(formatSnapshot({ ...baseSnapshot, labels: {} })).not.toContain("Labels");
+  });
+
+  it("renders Labels as key=value, comma-separated when present", () => {
+    const out = formatSnapshot({
+      ...baseSnapshot,
+      labels: { env: "prod", team: "data" }
+    });
+    expect(out).toContain("- **Labels**: env=prod, team=data");
+  });
+});
+
+describe("formatAction", () => {
+  it("includes core fields and progress percentage", () => {
+    const out = formatAction(baseAction);
+    expect(out).toContain("- **Action ID**: 9001");
+    expect(out).toContain("- **Command**: create_storage_box_snapshot");
+    expect(out).toContain("- **Status**: running");
+    expect(out).toContain("- **Progress**: 0%");
+  });
+
+  it("omits error line when error is null", () => {
+    const out = formatAction(baseAction);
+    expect(out).not.toContain("Error");
+  });
+
+  it("includes error line when error is present", () => {
+    const out = formatAction({
+      ...baseAction,
+      status: "error",
+      error: { code: "action_failed", message: "snapshot quota exceeded" }
+    });
+    expect(out).toContain("- **Error**: action_failed — snapshot quota exceeded");
+  });
+});
+
+describe("hetzner_list_storage_box_snapshots handler", () => {
+  it("returns markdown with formatted snapshots on happy path", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_snapshots")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      snapshots: [baseSnapshot, { ...baseSnapshot, id: 101, name: "snap-101" }],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 1, response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("# Snapshots for Storage Box 1");
+    expect(result.content[0].text).toContain("Found 2 snapshot(s)");
+    expect(result.content[0].text).toContain("snap-100");
+    expect(result.content[0].text).toContain("snap-101");
+  });
+
+  it("returns id-specific empty message when none", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_snapshots")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      snapshots: [],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 42, response_format: "markdown" });
+
+    expect(result.content[0].text).toBe("No snapshots found for Storage Box 42.");
+  });
+
+  it("propagates 404 as isError", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_snapshots")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 99, response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it("single-page mode bypasses pagination loop", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_snapshots")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      snapshots: [baseSnapshot],
+      meta: { pagination: { next_page: 5 } }
+    });
+
+    const result = await handler({ id: 1, response_format: "markdown", page: 2, per_page: 25 });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("JSON format includes snapshots array, truncated and partialFailure fields", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_snapshots")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      snapshots: [baseSnapshot],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 1, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.snapshots).toHaveLength(1);
+    expect(parsed.snapshots[0].id).toBe(100);
+    expect(parsed.truncated).toBe(false);
+  });
+});
+
+describe("hetzner_create_storage_box_snapshot handler", () => {
+  it("posts description+labels and returns markdown with snapshot+action", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      snapshot: { ...baseSnapshot, description: "pre-migration" },
+      action: baseAction
+    });
+
+    const result = await handler({
+      id: 1,
+      description: "pre-migration",
+      labels: { env: "dev" },
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/storage_boxes/1/snapshots",
+      expect.anything(),
+      "POST",
+      { description: "pre-migration", labels: { env: "dev" } }
+    );
+    expect(result.content[0].text).toContain("# Snapshot Created for Storage Box 1");
+    expect(result.content[0].text).toContain("snap-100");
+    expect(result.content[0].text).toContain("create_storage_box_snapshot");
+  });
+
+  it("posts empty body when no description/labels supplied", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({ snapshot: baseSnapshot, action: baseAction });
+
+    await handler({ id: 1, response_format: "markdown" });
+
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/storage_boxes/1/snapshots",
+      expect.anything(),
+      "POST",
+      {}
+    );
+  });
+
+  it("returns isError when API returns 422", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_snapshot")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("snapshot quota exceeded"));
+
+    const result = await handler({ id: 1, response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("snapshot quota exceeded");
+  });
+
+  it("JSON format returns raw {snapshot, action}", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({ snapshot: baseSnapshot, action: baseAction });
+
+    const result = await handler({ id: 1, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.snapshot.id).toBe(100);
+    expect(parsed.action.id).toBe(9001);
+  });
+});
+
+describe("hetzner_rollback_storage_box_snapshot handler", () => {
+  it("posts snapshot field (NOT snapshot_id) for rollback by id", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      action: { ...baseAction, command: "rollback_storage_box_snapshot" }
+    });
+
+    await handler({ id: 1, snapshot: "12345", response_format: "markdown" });
+
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/storage_boxes/1/actions/rollback_snapshot",
+      expect.anything(),
+      "POST",
+      { snapshot: "12345" }
+    );
+  });
+
+  it("forwards snapshot name verbatim", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      action: { ...baseAction, command: "rollback_storage_box_snapshot" }
+    });
+
+    const result = await handler({
+      id: 1,
+      snapshot: "pre-migration-backup",
+      response_format: "markdown"
+    });
+
+    expect(mockedRequest).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      "POST",
+      { snapshot: "pre-migration-backup" }
+    );
+    expect(result.content[0].text).toContain("pre-migration-backup");
+  });
+
+  it("JSON format returns action envelope", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      action: { ...baseAction, command: "rollback_storage_box_snapshot" }
+    });
+
+    const result = await handler({ id: 1, snapshot: "snap-name", response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.action.command).toBe("rollback_storage_box_snapshot");
+    expect(parsed.action.id).toBe(9001);
+  });
+
+  it("returns isError when API returns an error", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("rollback failed"));
+
+    const result = await handler({ id: 1, snapshot: "snap-name", response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("rollback failed");
+  });
+
+  it("declares destructiveHint: true and idempotentHint: false", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(tool.opts.annotations?.destructiveHint).toBe(true);
+    expect(tool.opts.annotations?.idempotentHint).toBe(false);
+    expect(tool.opts.annotations?.readOnlyHint).toBe(false);
+    expect(tool.opts.description).toMatch(/destructive/i);
+    expect(tool.opts.description).toMatch(/overwrite/i);
   });
 });

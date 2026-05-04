@@ -8,14 +8,21 @@ import {
   GetStorageBoxResponseSchema,
   ListStorageBoxSubaccountsResponse,
   ListStorageBoxSubaccountsResponseSchema,
+  ListStorageBoxSnapshotsResponse,
+  ListStorageBoxSnapshotsResponseSchema,
+  CreateStorageBoxSnapshotResponseSchema,
+  RollbackStorageBoxSnapshotResponseSchema,
   HetznerStorageBox,
   HetznerStorageBoxSubaccount,
+  HetznerStorageBoxSnapshot,
+  HetznerAction,
   HetznerMeta,
   BooleanKeys
 } from "../types.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const PAGINATION_HARD_CAP_PAGES = 5;
+const DEFAULT_PER_PAGE = 50;
 
 // C-3: constrain to keys whose value type is `boolean` so a typo like "name"
 // fails typecheck instead of silently filtering to false at runtime.
@@ -78,10 +85,50 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
   return lines.join("\n");
 }
 
+// Exported for unit testing.
+export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
+  const lines: string[] = [
+    `## ${snap.name} (ID: ${snap.id})`,
+    `- **Created**: ${snap.created.slice(0, 10)}`
+  ];
+  if (snap.description) {
+    lines.push(`- **Description**: ${snap.description}`);
+  }
+  if (snap.stats?.size !== undefined) {
+    lines.push(`- **Size**: ${formatBytes(snap.stats.size)}`);
+  }
+  if (snap.is_automatic !== undefined) {
+    lines.push(`- **Automatic**: ${snap.is_automatic ? "yes" : "no"}`);
+  }
+  if (snap.labels && Object.keys(snap.labels).length > 0) {
+    const labelStr = Object.entries(snap.labels)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ");
+    lines.push(`- **Labels**: ${labelStr}`);
+  }
+  return lines.join("\n");
+}
+
+// Exported for unit testing.
+export function formatAction(action: HetznerAction): string {
+  const lines: string[] = [
+    `- **Action ID**: ${action.id}`,
+    `- **Command**: ${action.command}`,
+    `- **Status**: ${action.status}`,
+    `- **Progress**: ${action.progress}%`
+  ];
+  if (action.error) {
+    lines.push(`- **Error**: ${action.error.code} — ${action.error.message}`);
+  }
+  return lines.join("\n");
+}
+
 // I-3: partialFailure is structured so callers can route by error kind
-// (retry on network, alert on schema mismatch, etc.) instead of parsing
-// a flat string.
-export type PartialFailureKind = "zod" | "network" | "http" | "other";
+// (retry on network, etc.) instead of parsing a flat string.
+// ZodError is intentionally absent: paginatedFetch re-throws it before
+// reaching classifyError, since a schema mismatch invalidates earlier
+// pages too.
+export type PartialFailureKind = "network" | "http" | "other";
 
 export interface PartialFailure {
   message: string;
@@ -100,7 +147,6 @@ export interface PaginatedListResult<T> {
 type ListExtractor<TResponse, TItem> = (resp: TResponse) => TItem[];
 
 function classifyError(error: unknown): PartialFailureKind {
-  if (error instanceof z.ZodError) return "zod";
   if (typeof error === "object" && error !== null) {
     const e = error as { response?: unknown; code?: string };
     if (e.response !== undefined) return "http";
@@ -120,7 +166,7 @@ export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, T
   endpoint: string,
   schema: z.ZodType<TResponse>,
   extractItems: ListExtractor<TResponse, TItem>,
-  perPage: number = 50
+  perPage: number = DEFAULT_PER_PAGE
 ): Promise<PaginatedListResult<TItem>> {
   const accumulated: TItem[] = [];
   let nextPage: number | null = 1;
@@ -176,7 +222,7 @@ export function registerStorageBoxTools(server: McpServer): void {
       title: "List Storage Boxes",
       description: `List Storage Boxes in the account.
 
-By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × 50 per page = 250 boxes).
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * DEFAULT_PER_PAGE} boxes).
 Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
 
 Returns Storage Boxes with their:
@@ -209,7 +255,7 @@ Returns Storage Boxes with their:
             ListStorageBoxesResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? 50 }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
           );
           boxes = data.storage_boxes;
         } else {
@@ -217,7 +263,7 @@ Returns Storage Boxes with their:
             "/storage_boxes",
             ListStorageBoxesResponseSchema,
             (r) => r.storage_boxes,
-            params.per_page ?? 50
+            params.per_page ?? DEFAULT_PER_PAGE
           );
           boxes = result.items;
           truncated = result.truncated;
@@ -308,7 +354,7 @@ Returns Storage Boxes with their:
       title: "List Storage Box Subaccounts",
       description: `List subaccounts for a specific Storage Box.
 
-By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × 50 per page = 250 subaccounts).
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * DEFAULT_PER_PAGE} subaccounts).
 Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
 
 Returns subaccounts with their:
@@ -341,7 +387,7 @@ Returns subaccounts with their:
             ListStorageBoxSubaccountsResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? 50 }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
           );
           subaccounts = data.subaccounts;
         } else {
@@ -349,7 +395,7 @@ Returns subaccounts with their:
             endpoint,
             ListStorageBoxSubaccountsResponseSchema,
             (r) => r.subaccounts,
-            params.per_page ?? 50
+            params.per_page ?? DEFAULT_PER_PAGE
           );
           subaccounts = result.items;
           truncated = result.truncated;
@@ -384,6 +430,227 @@ Returns subaccounts with their:
         if (partialFailure) {
           lines.push(`> ⚠️ Partial result: pagination failed after ${partialFailure.pagesSucceeded} page(s) (${partialFailure.kind}): ${partialFailure.message}`);
         }
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }]
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: handleApiError(error) }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // List Storage Box Snapshots
+  server.registerTool(
+    "hetzner_list_storage_box_snapshots",
+    {
+      title: "List Storage Box Snapshots",
+      description: `List snapshots for a specific Storage Box.
+
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * DEFAULT_PER_PAGE} snapshots).
+Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
+
+Returns each snapshot with its id, name, description, created timestamp,
+optional size, and whether it was created by the automatic snapshot plan.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
+        per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 50."),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const endpoint = `/storage_boxes/${params.id}/snapshots`;
+        let snapshots: HetznerStorageBoxSnapshot[];
+        let truncated = false;
+        let partialFailure: PartialFailure | undefined;
+
+        if (params.page !== undefined) {
+          const data = await makeStorageBoxApiRequest(
+            endpoint,
+            ListStorageBoxSnapshotsResponseSchema,
+            "GET",
+            undefined,
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
+          );
+          snapshots = data.snapshots;
+        } else {
+          const result = await paginatedFetch<ListStorageBoxSnapshotsResponse, HetznerStorageBoxSnapshot>(
+            endpoint,
+            ListStorageBoxSnapshotsResponseSchema,
+            (r) => r.snapshots,
+            params.per_page ?? DEFAULT_PER_PAGE
+          );
+          snapshots = result.items;
+          truncated = result.truncated;
+          partialFailure = result.partialFailure;
+        }
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return {
+            content: [{ type: "text", text: JSON.stringify({ snapshots, truncated, partialFailure }, null, 2) }]
+          };
+        }
+
+        if (snapshots.length === 0 && !partialFailure) {
+          return {
+            content: [{ type: "text", text: `No snapshots found for Storage Box ${params.id}.` }]
+          };
+        }
+
+        const lines = [
+          `# Snapshots for Storage Box ${params.id}`,
+          "",
+          `Found ${snapshots.length} snapshot(s):`,
+          ""
+        ];
+        for (const snap of snapshots) {
+          lines.push(formatSnapshot(snap));
+          lines.push("");
+        }
+        if (truncated) {
+          lines.push(TRUNCATION_NOTE);
+        }
+        if (partialFailure) {
+          lines.push(`> ⚠️ Partial result: pagination failed after ${partialFailure.pagesSucceeded} page(s) (${partialFailure.kind}): ${partialFailure.message}`);
+        }
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }]
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: handleApiError(error) }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Create Storage Box Snapshot
+  server.registerTool(
+    "hetzner_create_storage_box_snapshot",
+    {
+      title: "Create Storage Box Snapshot",
+      description: `Trigger an on-demand snapshot for a Storage Box.
+
+Optional \`description\` and \`labels\` are forwarded as the request body.
+Returns the new snapshot id and the action envelope (status, progress).`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        description: z.string().optional().describe("Optional human-readable description for the snapshot"),
+        labels: z.record(z.string(), z.string()).optional().describe("Optional Hetzner labels (string→string map)"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const body: Record<string, unknown> = {};
+        if (params.description !== undefined) body.description = params.description;
+        if (params.labels !== undefined) body.labels = params.labels;
+
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/snapshots`,
+          CreateStorageBoxSnapshotResponseSchema,
+          "POST",
+          body
+        );
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return {
+            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+          };
+        }
+
+        const lines = [
+          `# Snapshot Created for Storage Box ${params.id}`,
+          "",
+          formatSnapshot(data.snapshot),
+          "",
+          "## Action",
+          formatAction(data.action)
+        ];
+
+        return {
+          content: [{ type: "text", text: lines.join("\n") }]
+        };
+      } catch (error) {
+        return {
+          content: [{ type: "text", text: handleApiError(error) }],
+          isError: true
+        };
+      }
+    }
+  );
+
+  // Rollback Storage Box Snapshot
+  server.registerTool(
+    "hetzner_rollback_storage_box_snapshot",
+    {
+      title: "Rollback Storage Box Snapshot",
+      description: `Roll a Storage Box back to a previous snapshot.
+
+⚠️ DESTRUCTIVE: this overwrites the current state of the Storage Box.
+Any data written after the snapshot was taken will be lost.
+
+The \`snapshot\` parameter accepts the snapshot's name OR its numeric id.
+(The legacy \`snapshot_id\` API field has been deprecated by Hetzner;
+this tool uses the replacement \`snapshot\` field.)`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        snapshot: z
+          .string()
+          .min(1)
+          .refine((s) => s.trim().length > 0, { message: "snapshot must not be blank" })
+          .describe("Snapshot name or numeric ID (as string) to roll back to"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/rollback_snapshot`,
+          RollbackStorageBoxSnapshotResponseSchema,
+          "POST",
+          { snapshot: params.snapshot }
+        );
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return {
+            content: [{ type: "text", text: JSON.stringify(data, null, 2) }]
+          };
+        }
+
+        const lines = [
+          `# Rollback Triggered for Storage Box ${params.id}`,
+          "",
+          `Rolling back to snapshot: \`${params.snapshot}\``,
+          "",
+          "## Action",
+          formatAction(data.action)
+        ];
 
         return {
           content: [{ type: "text", text: lines.join("\n") }]

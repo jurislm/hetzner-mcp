@@ -268,6 +268,40 @@ export const ListStorageBoxSubaccountsResponseSchema = z.object({
 });
 export type ListStorageBoxSubaccountsResponse = z.infer<typeof ListStorageBoxSubaccountsResponseSchema>;
 
+export const HetznerStorageBoxSnapshotSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  description: z.string().nullable().optional(),
+  stats: z
+    .object({
+      size: z.number().optional(),
+      size_filesystem: z.number().optional()
+    })
+    .optional(),
+  is_automatic: z.boolean().optional(),
+  storage_box: z.number().optional(),
+  created: z.string(),
+  labels: z.record(z.string(), z.string()).optional()
+});
+export type HetznerStorageBoxSnapshot = z.infer<typeof HetznerStorageBoxSnapshotSchema>;
+
+export const ListStorageBoxSnapshotsResponseSchema = z.object({
+  snapshots: z.array(HetznerStorageBoxSnapshotSchema),
+  meta: HetznerMetaSchema.optional()
+});
+export type ListStorageBoxSnapshotsResponse = z.infer<typeof ListStorageBoxSnapshotsResponseSchema>;
+
+export const CreateStorageBoxSnapshotResponseSchema = z.object({
+  snapshot: HetznerStorageBoxSnapshotSchema,
+  action: HetznerActionSchema
+});
+export type CreateStorageBoxSnapshotResponse = z.infer<typeof CreateStorageBoxSnapshotResponseSchema>;
+
+export const RollbackStorageBoxSnapshotResponseSchema = z.object({
+  action: HetznerActionSchema
+});
+export type RollbackStorageBoxSnapshotResponse = z.infer<typeof RollbackStorageBoxSnapshotResponseSchema>;
+
 // API Error
 export interface HetznerAPIError {
   error: {

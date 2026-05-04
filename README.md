@@ -180,7 +180,7 @@ Your API token is powerful - anyone with it can create/delete servers in your pr
 
 ### Storage Boxes — Different Token Required
 
-Storage Box tools (`hetzner_list_storage_boxes`, `hetzner_get_storage_box`, `hetzner_list_storage_box_subaccounts`) use Hetzner's **unified API** at `api.hetzner.com/v1`, which is **not** the same as the Cloud API used by all the other tools. The two APIs accept different token classes:
+Storage Box tools (`hetzner_list_storage_boxes`, `hetzner_get_storage_box`, `hetzner_list_storage_box_subaccounts`, `hetzner_list_storage_box_snapshots`, `hetzner_create_storage_box_snapshot`, `hetzner_rollback_storage_box_snapshot`) use Hetzner's **unified API** at `api.hetzner.com/v1`, which is **not** the same as the Cloud API used by all the other tools. The two APIs accept different token classes:
 
 | Tool category | API endpoint | Token source |
 |---|---|---|
@@ -340,7 +340,7 @@ Once configured, you can talk to Claude naturally:
 
 ---
 
-## Available Tools (17 total)
+## Available Tools (20 total)
 
 ### Server Tools (7)
 | Tool | What it does |
@@ -368,12 +368,15 @@ Once configured, you can talk to Claude naturally:
 | `hetzner_list_images` | Shows available operating systems |
 | `hetzner_list_locations` | Shows available datacenters |
 
-### Storage Box Tools (3) — uses unified API token (see [Storage Boxes — Different Token Required](#storage-boxes--different-token-required))
+### Storage Box Tools (6) — uses unified API token (see [Storage Boxes — Different Token Required](#storage-boxes--different-token-required))
 | Tool | What it does |
 |------|--------------|
 | `hetzner_list_storage_boxes` | Lists all Storage Boxes (auto-paginates, cap 5 pages × 50) |
 | `hetzner_get_storage_box` | Shows details of one Storage Box |
 | `hetzner_list_storage_box_subaccounts` | Lists subaccounts for a Storage Box (auto-paginates) |
+| `hetzner_list_storage_box_snapshots` | Lists snapshots for a Storage Box (auto-paginates) |
+| `hetzner_create_storage_box_snapshot` | Triggers an on-demand snapshot (optional description / labels) |
+| `hetzner_rollback_storage_box_snapshot` | **Destructive** — rolls a Storage Box back to a snapshot (overwrites data) |
 
 ---
 

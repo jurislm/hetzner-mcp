@@ -1,6 +1,6 @@
 # CLAUDE.md — JurisLM Hetzner MCP Server
 
-Hetzner Cloud 管理 MCP Server，提供 17 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes）。
+Hetzner Cloud 管理 MCP Server，提供 20 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes、Snapshots）。
 
 ## 常用命令
 
@@ -37,10 +37,10 @@ src/
     ├── servers.ts     # 7 個伺服器管理工具
     ├── ssh-keys.ts    # 4 個 SSH 金鑰工具
     ├── reference.ts   # 3 個參考資料工具
-    └── storage-boxes.ts # 3 個 Storage Boxes 工具
+    └── storage-boxes.ts # 6 個 Storage Boxes 工具
 ```
 
-## 工具清單（17 個）
+## 工具清單（20 個）
 
 ### Servers（7 tools）
 - `hetzner_list_servers` — 列出專案所有伺服器
@@ -62,10 +62,13 @@ src/
 - `hetzner_list_images` — 列出可用 OS 映像檔
 - `hetzner_list_locations` — 列出可用資料中心位置
 
-### Storage Boxes（3 tools）
+### Storage Boxes（6 tools）
 - `hetzner_list_storage_boxes` — 列出所有 Storage Box（支援分頁）
 - `hetzner_get_storage_box` — 取得單一 Storage Box 詳情（容量、protocols、狀態）
 - `hetzner_list_storage_box_subaccounts` — 列出 Storage Box 的所有子帳號
+- `hetzner_list_storage_box_snapshots` — 列出 Storage Box 的所有 snapshots（支援分頁）
+- `hetzner_create_storage_box_snapshot` — 觸發即時 snapshot（手動備份點，可選 description / labels）
+- `hetzner_rollback_storage_box_snapshot` — 回滾至指定 snapshot（**destructive**，覆寫資料）
 
 ## 環境變數
 
@@ -80,7 +83,7 @@ src/
 
 1. `src/types.ts` — 新增 TypeScript 介面
 2. `src/api.ts` — 新增 API client 方法
-3. `src/tools/<category>.ts` — 新增 MCP tool 定義（`server.tool()`）
+3. `src/tools/<category>.ts` — 新增 MCP tool 定義（`server.registerTool()`，支援 annotations）
 4. `src/index.ts` — 若新建 tools 檔案需 import
 
 工具命名規則：`hetzner_` 前綴 + `snake_case`（例：`hetzner_resize_server`）
