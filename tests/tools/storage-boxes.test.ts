@@ -14,6 +14,7 @@ import {
   formatStorageBox,
   formatSubaccount,
   formatSnapshot,
+  formatAction,
   paginatedFetch,
   registerStorageBoxTools
 } from "../../src/tools/storage-boxes.js";
@@ -511,6 +512,30 @@ describe("formatSnapshot", () => {
   it("includes description line when present", () => {
     const out = formatSnapshot({ ...baseSnapshot, description: "pre-migration" });
     expect(out).toContain("- **Description**: pre-migration");
+  });
+});
+
+describe("formatAction", () => {
+  it("includes core fields and progress percentage", () => {
+    const out = formatAction(baseAction);
+    expect(out).toContain("- **Action ID**: 9001");
+    expect(out).toContain("- **Command**: create_storage_box_snapshot");
+    expect(out).toContain("- **Status**: running");
+    expect(out).toContain("- **Progress**: 0%");
+  });
+
+  it("omits error line when error is null", () => {
+    const out = formatAction(baseAction);
+    expect(out).not.toContain("Error");
+  });
+
+  it("includes error line when error is present", () => {
+    const out = formatAction({
+      ...baseAction,
+      status: "error",
+      error: { code: "action_failed", message: "snapshot quota exceeded" }
+    });
+    expect(out).toContain("- **Error**: action_failed — snapshot quota exceeded");
   });
 });
 

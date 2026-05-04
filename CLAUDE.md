@@ -83,7 +83,7 @@ src/
 
 1. `src/types.ts` — 新增 TypeScript 介面
 2. `src/api.ts` — 新增 API client 方法
-3. `src/tools/<category>.ts` — 新增 MCP tool 定義（`server.tool()`）
+3. `src/tools/<category>.ts` — 新增 MCP tool 定義（`server.registerTool()`，支援 annotations）
 4. `src/index.ts` — 若新建 tools 檔案需 import
 
 工具命名規則：`hetzner_` 前綴 + `snake_case`（例：`hetzner_resize_server`）

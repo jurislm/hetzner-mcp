@@ -607,7 +607,11 @@ The \`snapshot\` parameter accepts the snapshot's name OR its numeric id.
 2026-04-21; this tool uses the new \`snapshot\` field.)`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        snapshot: z.string().min(1).describe("Snapshot name or numeric ID (as string) to roll back to"),
+        snapshot: z
+          .string()
+          .min(1)
+          .refine((s) => s.trim().length > 0, { message: "snapshot must not be blank" })
+          .describe("Snapshot name or numeric ID (as string) to roll back to"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
