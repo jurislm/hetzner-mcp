@@ -222,7 +222,7 @@ export function registerStorageBoxTools(server: McpServer): void {
       title: "List Storage Boxes",
       description: `List Storage Boxes in the account.
 
-By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × 50 per page = 250 boxes).
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * DEFAULT_PER_PAGE} boxes).
 Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
 
 Returns Storage Boxes with their:
@@ -354,7 +354,7 @@ Returns Storage Boxes with their:
       title: "List Storage Box Subaccounts",
       description: `List subaccounts for a specific Storage Box.
 
-By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × 50 per page = 250 subaccounts).
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * DEFAULT_PER_PAGE} subaccounts).
 Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
 
 Returns subaccounts with their:
@@ -450,7 +450,7 @@ Returns subaccounts with their:
       title: "List Storage Box Snapshots",
       description: `List snapshots for a specific Storage Box.
 
-By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × 50 per page = 250 snapshots).
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * DEFAULT_PER_PAGE} snapshots).
 Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
 
 Returns each snapshot with its id, name, description, created timestamp,
