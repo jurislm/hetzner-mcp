@@ -603,8 +603,8 @@ Returns the new snapshot id and the action envelope (status, progress).`,
 Any data written after the snapshot was taken will be lost.
 
 The \`snapshot\` parameter accepts the snapshot's name OR its numeric id.
-(The legacy \`snapshot_id\` API field is deprecated and will be removed on
-2026-04-21; this tool uses the new \`snapshot\` field.)`,
+(The legacy \`snapshot_id\` API field has been deprecated by Hetzner;
+this tool uses the replacement \`snapshot\` field.)`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
         snapshot: z

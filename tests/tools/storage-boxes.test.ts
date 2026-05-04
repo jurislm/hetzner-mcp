@@ -164,7 +164,11 @@ function makeBox(id: number): HetznerStorageBox {
   return { ...baseBox, id, name: `box-${id}` };
 }
 
-function pageResponse(boxes: HetznerStorageBox[], nextPage: number | null): ListStorageBoxesResponse {
+function pageResponse(
+  boxes: HetznerStorageBox[],
+  nextPage: number | null,
+  lastPage: number | null = null
+): ListStorageBoxesResponse {
   return {
     storage_boxes: boxes,
     meta: {
@@ -173,7 +177,7 @@ function pageResponse(boxes: HetznerStorageBox[], nextPage: number | null): List
         per_page: 50,
         previous_page: null,
         next_page: nextPage,
-        last_page: nextPage,
+        last_page: lastPage,
         total_entries: null
       }
     }
@@ -458,6 +462,47 @@ describe("registerStorageBoxTools — handler integration (I-7)", () => {
     const result = await handler({ id: 99, response_format: "markdown" });
 
     expect(result.isError).toBe(true);
+  });
+
+  it("hetzner_get_storage_box JSON format returns raw storage_box object", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: makeBox(99) });
+
+    const result = await handler({ id: 99, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.id).toBe(99);
+    expect(parsed.name).toBe("box-99");
+  });
+
+  it("hetzner_list_storage_box_subaccounts single-page mode bypasses pagination loop", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [baseSubaccount],
+      meta: { pagination: { next_page: 5 } }
+    });
+
+    const result = await handler({ id: 1, response_format: "markdown", page: 2, per_page: 25 });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("hetzner_list_storage_box_subaccounts JSON format includes truncated and partialFailure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [baseSubaccount],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 1, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.subaccounts).toHaveLength(1);
+    expect(parsed.truncated).toBe(false);
   });
 
   it("hetzner_list_storage_box_subaccounts empty result returns id-specific message", async () => {
