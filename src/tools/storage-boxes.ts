@@ -22,6 +22,7 @@ import {
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const PAGINATION_HARD_CAP_PAGES = 5;
+const DEFAULT_PER_PAGE = 50;
 
 // C-3: constrain to keys whose value type is `boolean` so a typo like "name"
 // fails typecheck instead of silently filtering to false at runtime.
@@ -88,7 +89,7 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
 export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
   const lines: string[] = [
     `## ${snap.name} (ID: ${snap.id})`,
-    `- **Created**: ${snap.created}`
+    `- **Created**: ${snap.created.slice(0, 10)}`
   ];
   if (snap.description) {
     lines.push(`- **Description**: ${snap.description}`);
@@ -107,11 +108,9 @@ export function formatAction(action: HetznerAction): string {
   const lines: string[] = [
     `- **Action ID**: ${action.id}`,
     `- **Command**: ${action.command}`,
-    `- **Status**: ${action.status}`
+    `- **Status**: ${action.status}`,
+    `- **Progress**: ${action.progress}%`
   ];
-  if (action.progress !== undefined) {
-    lines.push(`- **Progress**: ${action.progress}%`);
-  }
   if (action.error) {
     lines.push(`- **Error**: ${action.error.code} — ${action.error.message}`);
   }
@@ -160,7 +159,7 @@ export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, T
   endpoint: string,
   schema: z.ZodType<TResponse>,
   extractItems: ListExtractor<TResponse, TItem>,
-  perPage: number = 50
+  perPage: number = DEFAULT_PER_PAGE
 ): Promise<PaginatedListResult<TItem>> {
   const accumulated: TItem[] = [];
   let nextPage: number | null = 1;
@@ -249,7 +248,7 @@ Returns Storage Boxes with their:
             ListStorageBoxesResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? 50 }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
           );
           boxes = data.storage_boxes;
         } else {
@@ -257,7 +256,7 @@ Returns Storage Boxes with their:
             "/storage_boxes",
             ListStorageBoxesResponseSchema,
             (r) => r.storage_boxes,
-            params.per_page ?? 50
+            params.per_page ?? DEFAULT_PER_PAGE
           );
           boxes = result.items;
           truncated = result.truncated;
@@ -381,7 +380,7 @@ Returns subaccounts with their:
             ListStorageBoxSubaccountsResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? 50 }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
           );
           subaccounts = data.subaccounts;
         } else {
@@ -389,7 +388,7 @@ Returns subaccounts with their:
             endpoint,
             ListStorageBoxSubaccountsResponseSchema,
             (r) => r.subaccounts,
-            params.per_page ?? 50
+            params.per_page ?? DEFAULT_PER_PAGE
           );
           subaccounts = result.items;
           truncated = result.truncated;
@@ -475,7 +474,7 @@ optional size, and whether it was created by the automatic snapshot plan.`,
             ListStorageBoxSnapshotsResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? 50 }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
           );
           snapshots = data.snapshots;
         } else {
@@ -483,7 +482,7 @@ optional size, and whether it was created by the automatic snapshot plan.`,
             endpoint,
             ListStorageBoxSnapshotsResponseSchema,
             (r) => r.snapshots,
-            params.per_page ?? 50
+            params.per_page ?? DEFAULT_PER_PAGE
           );
           snapshots = result.items;
           truncated = result.truncated;

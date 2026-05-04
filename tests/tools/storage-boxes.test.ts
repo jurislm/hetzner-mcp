@@ -497,7 +497,8 @@ describe("formatSnapshot", () => {
   it("includes core fields and formatted size", () => {
     const out = formatSnapshot(baseSnapshot);
     expect(out).toContain("snap-100 (ID: 100)");
-    expect(out).toContain("- **Created**: 2026-05-01T10:00:00+00:00");
+    expect(out).toContain("- **Created**: 2026-05-01");
+    expect(out).not.toContain("T10:00:00");
     expect(out).toContain("- **Size**: 5.0 GiB");
     expect(out).toContain("- **Automatic**: no");
   });
@@ -622,6 +623,18 @@ describe("hetzner_create_storage_box_snapshot handler", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("snapshot quota exceeded");
   });
+
+  it("JSON format returns raw {snapshot, action}", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({ snapshot: baseSnapshot, action: baseAction });
+
+    const result = await handler({ id: 1, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.snapshot.id).toBe(100);
+    expect(parsed.action.id).toBe(9001);
+  });
 });
 
 describe("hetzner_rollback_storage_box_snapshot handler", () => {
@@ -662,6 +675,20 @@ describe("hetzner_rollback_storage_box_snapshot handler", () => {
       { snapshot: "pre-migration-backup" }
     );
     expect(result.content[0].text).toContain("pre-migration-backup");
+  });
+
+  it("JSON format returns action envelope", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      action: { ...baseAction, command: "rollback_storage_box_snapshot" }
+    });
+
+    const result = await handler({ id: 1, snapshot: "snap-name", response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.action.command).toBe("rollback_storage_box_snapshot");
+    expect(parsed.action.id).toBe(9001);
   });
 
   it("declares destructiveHint: true and idempotentHint: false", () => {

@@ -37,7 +37,7 @@ src/
     ├── servers.ts     # 7 個伺服器管理工具
     ├── ssh-keys.ts    # 4 個 SSH 金鑰工具
     ├── reference.ts   # 3 個參考資料工具
-    └── storage-boxes.ts # 3 個 Storage Boxes 工具
+    └── storage-boxes.ts # 6 個 Storage Boxes 工具
 ```
 
 ## 工具清單（20 個）
