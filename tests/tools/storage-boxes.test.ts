@@ -558,6 +558,19 @@ describe("formatSnapshot", () => {
     const out = formatSnapshot({ ...baseSnapshot, description: "pre-migration" });
     expect(out).toContain("- **Description**: pre-migration");
   });
+
+  it("omits Labels line when labels is undefined or empty", () => {
+    expect(formatSnapshot({ ...baseSnapshot, labels: undefined })).not.toContain("Labels");
+    expect(formatSnapshot({ ...baseSnapshot, labels: {} })).not.toContain("Labels");
+  });
+
+  it("renders Labels as key=value, comma-separated when present", () => {
+    const out = formatSnapshot({
+      ...baseSnapshot,
+      labels: { env: "prod", team: "data" }
+    });
+    expect(out).toContain("- **Labels**: env=prod, team=data");
+  });
 });
 
 describe("formatAction", () => {
@@ -637,6 +650,22 @@ describe("hetzner_list_storage_box_snapshots handler", () => {
 
     expect(result.isError).toBeUndefined();
     expect(mockedRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it("JSON format includes snapshots array, truncated and partialFailure fields", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_snapshots")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      snapshots: [baseSnapshot],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 1, response_format: "json" });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.snapshots).toHaveLength(1);
+    expect(parsed.snapshots[0].id).toBe(100);
+    expect(parsed.truncated).toBe(false);
   });
 });
 
@@ -759,6 +788,17 @@ describe("hetzner_rollback_storage_box_snapshot handler", () => {
     const parsed = JSON.parse(result.content[0].text);
     expect(parsed.action.command).toBe("rollback_storage_box_snapshot");
     expect(parsed.action.id).toBe(9001);
+  });
+
+  it("returns isError when API returns an error", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("rollback failed"));
+
+    const result = await handler({ id: 1, snapshot: "snap-name", response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("rollback failed");
   });
 
   it("declares destructiveHint: true and idempotentHint: false", () => {

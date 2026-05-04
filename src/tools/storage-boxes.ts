@@ -100,6 +100,12 @@ export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
   if (snap.is_automatic !== undefined) {
     lines.push(`- **Automatic**: ${snap.is_automatic ? "yes" : "no"}`);
   }
+  if (snap.labels && Object.keys(snap.labels).length > 0) {
+    const labelStr = Object.entries(snap.labels)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ");
+    lines.push(`- **Labels**: ${labelStr}`);
+  }
   return lines.join("\n");
 }
 
@@ -118,9 +124,11 @@ export function formatAction(action: HetznerAction): string {
 }
 
 // I-3: partialFailure is structured so callers can route by error kind
-// (retry on network, alert on schema mismatch, etc.) instead of parsing
-// a flat string.
-export type PartialFailureKind = "zod" | "network" | "http" | "other";
+// (retry on network, etc.) instead of parsing a flat string.
+// ZodError is intentionally absent: paginatedFetch re-throws it before
+// reaching classifyError, since a schema mismatch invalidates earlier
+// pages too.
+export type PartialFailureKind = "network" | "http" | "other";
 
 export interface PartialFailure {
   message: string;
@@ -139,7 +147,6 @@ export interface PaginatedListResult<T> {
 type ListExtractor<TResponse, TItem> = (resp: TResponse) => TItem[];
 
 function classifyError(error: unknown): PartialFailureKind {
-  if (error instanceof z.ZodError) return "zod";
   if (typeof error === "object" && error !== null) {
     const e = error as { response?: unknown; code?: string };
     if (e.response !== undefined) return "http";
