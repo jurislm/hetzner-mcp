@@ -219,23 +219,59 @@ export const HetznerMetaSchema = z.object({
 });
 export type HetznerMeta = z.infer<typeof HetznerMetaSchema>;
 
+// Unified API (api.hetzner.com/v1) returns a nested structure distinct from
+// the legacy Robot API. Field names verified against official docs at
+// https://docs.hetzner.cloud/reference/hetzner (issue #13).
+// passthrough() on nested schemas tolerates unknown sub-fields if Hetzner
+// extends the API in future minor versions.
 export const HetznerStorageBoxSchema = z.object({
   id: z.number(),
   name: z.string(),
-  login: z.string(),
-  product: z.string(),
-  location: z.string(),
-  quota_bytes: z.number(),
-  used_bytes: z.number(),
-  snapshots_used_bytes: z.number(),
-  ssh: z.boolean(),
-  webdav: z.boolean(),
-  samba: z.boolean(),
-  zfs: z.boolean(),
-  external_reachability: z.boolean(),
-  locked: z.boolean(),
-  cancelled: z.boolean(),
-  paid_until: z.string().nullable()
+  username: z.string(),
+  status: z.string(),
+  // Null during initializing status.
+  server: z.string().nullable(),
+  system: z.string().nullable(),
+  storage_box_type: z.object({
+    id: z.number(),
+    name: z.string(),
+    description: z.string(),
+    size: z.number().optional()
+  }).passthrough(),
+  location: z.object({
+    id: z.number(),
+    name: z.string(),
+    description: z.string(),
+    country: z.string(),
+    city: z.string()
+  }).passthrough(),
+  labels: z.record(z.string(), z.string()),
+  protection: z.object({
+    delete: z.boolean()
+  }).passthrough(),
+  access_settings: z.object({
+    reachable_externally: z.boolean(),
+    ssh_enabled: z.boolean(),
+    samba_enabled: z.boolean(),
+    webdav_enabled: z.boolean(),
+    zfs_enabled: z.boolean()
+  }).passthrough(),
+  // Flat stats object; values are in bytes.
+  stats: z.object({
+    size: z.number(),
+    size_data: z.number(),
+    size_snapshots: z.number()
+  }).passthrough(),
+  // null when no plan is configured; object when an automatic plan is active.
+  // passthrough() so new fields added by Hetzner don't trigger ZodError.
+  snapshot_plan: z.object({
+    max_snapshots: z.number(),
+    minute: z.number(),
+    hour: z.number(),
+    day_of_week: z.number().nullable(),
+    day_of_month: z.number().nullable()
+  }).passthrough().nullable(),
+  created: z.string()
 });
 export type HetznerStorageBox = z.infer<typeof HetznerStorageBoxSchema>;
 

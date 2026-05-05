@@ -24,9 +24,18 @@ const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat
 const PAGINATION_HARD_CAP_PAGES = 5;
 const DEFAULT_PER_PAGE = 50;
 
+// access_settings protocol keys in display order. Using a tuple instead of
+// BooleanKeys<HetznerStorageBox> because protocols are now nested inside
+// access_settings (unified API redesign — issue #13).
+const STORAGE_BOX_PROTOCOL_KEYS = [
+  ["ssh_enabled", "ssh"],
+  ["webdav_enabled", "webdav"],
+  ["samba_enabled", "samba"],
+  ["zfs_enabled", "zfs"]
+] as const;
+
 // C-3: constrain to keys whose value type is `boolean` so a typo like "name"
 // fails typecheck instead of silently filtering to false at runtime.
-const STORAGE_BOX_PROTOCOLS = ["ssh", "webdav", "samba", "zfs"] as const satisfies readonly BooleanKeys<HetznerStorageBox>[];
 const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly BooleanKeys<HetznerStorageBoxSubaccount>[];
 
 // Exported for unit testing.
@@ -40,28 +49,25 @@ export function formatBytes(bytes: number): string {
 
 // Exported for unit testing.
 export function formatStorageBox(box: HetznerStorageBox): string {
-  const protocols = STORAGE_BOX_PROTOCOLS
-    .filter((p) => box[p] === true)
+  const settings = box.access_settings;
+  const protocols = STORAGE_BOX_PROTOCOL_KEYS
+    .filter(([key]) => settings[key] === true)
+    .map(([, label]) => label)
     .join(", ") || "none";
 
-  const lines = [
+  return [
     `## ${box.name} (ID: ${box.id})`,
-    `- **Login**: ${box.login}`,
-    `- **Product**: ${box.product}`,
-    `- **Location**: ${box.location}`,
-    `- **Storage**: ${formatBytes(box.used_bytes)} used / ${formatBytes(box.quota_bytes)} total`,
-    `- **Snapshots**: ${formatBytes(box.snapshots_used_bytes)}`,
+    `- **Username**: ${box.username}`,
+    `- **Status**: ${box.status}`,
+    `- **Type**: ${box.storage_box_type.name}`,
+    `- **Location**: ${box.location.name}`,
+    `- **Server**: ${box.server ?? "—"}`,
+    `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(box.stats.size)} total`,
+    `- **Snapshots**: ${formatBytes(box.stats.size_snapshots)}`,
     `- **Protocols**: ${protocols}`,
-    `- **External reachability**: ${box.external_reachability ? "yes" : "no"}`,
-    `- **Locked**: ${box.locked ? "yes" : "no"}`,
-    `- **Cancelled**: ${box.cancelled ? "yes" : "no"}`
-  ];
-
-  if (box.paid_until) {
-    lines.push(`- **Paid until**: ${box.paid_until.slice(0, 10)}`);
-  }
-
-  return lines.join("\n");
+    `- **External reachability**: ${settings.reachable_externally ? "yes" : "no"}`,
+    `- **Delete protected**: ${box.protection.delete ? "yes" : "no"}`
+  ].join("\n");
 }
 
 // Exported for unit testing.
@@ -226,9 +232,8 @@ By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${DEFAU
 Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
 
 Returns Storage Boxes with their:
-- Name and ID
-- Login name and product type
-- Location
+- Name, ID, username, and status
+- Storage box type and location
 - Storage usage and quota
 - Enabled protocols (SSH, WebDAV, Samba, ZFS)`,
       inputSchema: z.object({
