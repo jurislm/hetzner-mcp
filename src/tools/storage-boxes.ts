@@ -54,7 +54,6 @@ export function formatStorageBox(box: HetznerStorageBox): string {
     .filter(([key]) => settings[key] === true)
     .map(([, label]) => label)
     .join(", ") || "none";
-
   return [
     `## ${box.name} (ID: ${box.id})`,
     `- **Username**: ${box.username}`,
@@ -62,7 +61,7 @@ export function formatStorageBox(box: HetznerStorageBox): string {
     `- **Type**: ${box.storage_box_type.name}`,
     `- **Location**: ${box.location.name}`,
     `- **Server**: ${box.server ?? "—"}`,
-    `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(box.stats.size)} total`,
+    `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(box.storage_box_type.size)} total`,
     `- **Snapshots**: ${formatBytes(box.stats.size_snapshots)}`,
     `- **Protocols**: ${protocols}`,
     `- **External reachability**: ${settings.reachable_externally ? "yes" : "no"}`,
