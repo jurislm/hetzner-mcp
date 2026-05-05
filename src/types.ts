@@ -263,13 +263,14 @@ export const HetznerStorageBoxSchema = z.object({
     size_snapshots: z.number()
   }).passthrough(),
   // null when no plan is configured; object when an automatic plan is active.
+  // passthrough() so new fields added by Hetzner don't trigger ZodError.
   snapshot_plan: z.object({
     max_snapshots: z.number(),
     minute: z.number(),
     hour: z.number(),
     day_of_week: z.number().nullable(),
     day_of_month: z.number().nullable()
-  }).nullable(),
+  }).passthrough().nullable(),
   created: z.string()
 });
 export type HetznerStorageBox = z.infer<typeof HetznerStorageBoxSchema>;
