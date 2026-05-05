@@ -1,8 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { makeApiRequest, handleApiError } from "../api.js";
+import {
+  makeApiRequest,
+  handleApiError,
+  createPaginatedFetch,
+  PAGINATION_HARD_CAP_PAGES,
+  PartialFailure
+} from "../api.js";
 import {
   ResponseFormat,
+  ListServersResponse,
   ListServersResponseSchema,
   GetServerResponseSchema,
   CreateServerResponseSchema,
@@ -11,6 +18,10 @@ import {
 } from "../types.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
+const CLOUD_DEFAULT_PER_PAGE = 25;
+const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
+
+const paginatedFetch = createPaginatedFetch(makeApiRequest);
 
 function formatServer(server: HetznerServer): string {
   const ipv4 = server.public_net.ipv4?.ip || "N/A";
@@ -46,7 +57,10 @@ export function registerServerTools(server: McpServer): void {
       title: "List Servers",
       description: `List all servers in the project.
 
-Returns all servers with their:
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${CLOUD_DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * CLOUD_DEFAULT_PER_PAGE} servers).
+Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
+
+Returns servers with their:
 - Name and ID
 - Status (running, off, etc.)
 - IP addresses
@@ -54,6 +68,8 @@ Returns all servers with their:
 - Location
 - Image/OS`,
       inputSchema: z.object({
+        page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
+        per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 25."),
         label_selector: z.string().optional()
           .describe("Filter by label (e.g., 'env=production')"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
@@ -67,21 +83,42 @@ Returns all servers with their:
     },
     async (params) => {
       try {
-        const queryParams: Record<string, string> = {};
-        if (params.label_selector) {
-          queryParams.label_selector = params.label_selector;
-        }
+        let servers: HetznerServer[];
+        let truncated = false;
+        let partialFailure: PartialFailure | undefined;
 
-        const data = await makeApiRequest("/servers", ListServersResponseSchema, "GET", undefined, queryParams);
-        const servers = data.servers;
+        const filterParams: Record<string, unknown> = {};
+        if (params.label_selector) filterParams.label_selector = params.label_selector;
+
+        if (params.page !== undefined) {
+          const data = await makeApiRequest(
+            "/servers",
+            ListServersResponseSchema,
+            "GET",
+            undefined,
+            { page: params.page, per_page: params.per_page ?? CLOUD_DEFAULT_PER_PAGE, ...filterParams }
+          );
+          servers = data.servers;
+        } else {
+          const result = await paginatedFetch<ListServersResponse, HetznerServer>(
+            "/servers",
+            ListServersResponseSchema,
+            (r) => r.servers,
+            params.per_page ?? CLOUD_DEFAULT_PER_PAGE,
+            filterParams
+          );
+          servers = result.items;
+          truncated = result.truncated;
+          partialFailure = result.partialFailure;
+        }
 
         if (params.response_format === ResponseFormat.JSON) {
           return {
-            content: [{ type: "text", text: JSON.stringify(servers, null, 2) }]
+            content: [{ type: "text", text: JSON.stringify({ servers, truncated, partialFailure }, null, 2) }]
           };
         }
 
-        if (servers.length === 0) {
+        if (servers.length === 0 && !partialFailure) {
           return {
             content: [{ type: "text", text: "No servers found. Use `hetzner_create_server` to create one." }]
           };
@@ -91,6 +128,12 @@ Returns all servers with their:
         for (const srv of servers) {
           lines.push(formatServer(srv));
           lines.push("");
+        }
+        if (truncated) {
+          lines.push(TRUNCATION_NOTE);
+        }
+        if (partialFailure) {
+          lines.push(`> ⚠️ Partial result: pagination failed after ${partialFailure.pagesSucceeded} page(s) (${partialFailure.kind}): ${partialFailure.message}`);
         }
 
         return {

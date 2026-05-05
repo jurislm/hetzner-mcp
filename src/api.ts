@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosInstance } from "axios";
 import { z } from "zod";
+import type { HetznerMeta } from "./types.js";
 
 const API_BASE_URL = "https://api.hetzner.cloud/v1";
 const STORAGE_BOX_API_BASE_URL = "https://api.hetzner.com/v1";
@@ -183,6 +184,103 @@ export function handleApiError(error: unknown): string {
   }
 
   return "Error: An unexpected error occurred.";
+}
+
+// =====================================================================
+// Shared pagination infrastructure used by all list tools.
+// =====================================================================
+
+export const PAGINATION_HARD_CAP_PAGES = 5;
+
+export type PartialFailureKind = "network" | "http" | "other";
+
+export interface PartialFailure {
+  message: string;
+  kind: PartialFailureKind;
+  pagesSucceeded: number;
+}
+
+export interface PaginatedListResult<T> {
+  items: T[];
+  truncated: boolean;
+  partialFailure?: PartialFailure;
+}
+
+function classifyError(error: unknown): PartialFailureKind {
+  if (typeof error === "object" && error !== null) {
+    const e = error as { response?: unknown; code?: string };
+    if (e.response !== undefined) return "http";
+    if (typeof e.code === "string") return "network";
+  }
+  return "other";
+}
+
+// Type for any request function compatible with paginatedFetch (both Cloud and Unified API).
+type PaginatedRequestFn = <T>(
+  endpoint: string,
+  schema: z.ZodType<T>,
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  data: unknown,
+  params?: Record<string, unknown>
+) => Promise<T>;
+
+/**
+ * Creates a paginatedFetch function bound to the given requestFn.
+ * Supports auto-pagination up to PAGINATION_HARD_CAP_PAGES pages,
+ * structured partial-failure on mid-stream errors, and optional extra
+ * query params forwarded on every page request (e.g. filter params).
+ */
+export function createPaginatedFetch(requestFn: PaginatedRequestFn) {
+  return async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, TItem>(
+    endpoint: string,
+    schema: z.ZodType<TResponse>,
+    extractItems: (resp: TResponse) => TItem[],
+    perPage = 50,
+    extraParams: Record<string, unknown> = {}
+  ): Promise<PaginatedListResult<TItem>> {
+    const accumulated: TItem[] = [];
+    let nextPage: number | null = 1;
+    let pagesFetched = 0;
+    let truncated = false;
+
+    while (nextPage !== null) {
+      if (pagesFetched >= PAGINATION_HARD_CAP_PAGES) {
+        truncated = true;
+        break;
+      }
+      try {
+        const pageData: TResponse = await requestFn<TResponse>(endpoint, schema, "GET", undefined, {
+          page: nextPage,
+          per_page: perPage,
+          ...extraParams
+        });
+        accumulated.push(...extractItems(pageData));
+        pagesFetched += 1;
+        nextPage = pageData.meta?.pagination?.next_page ?? null;
+      } catch (error) {
+        // ZodError = API contract violation; earlier pages also suspect → bail entirely.
+        if (error instanceof z.ZodError) {
+          throw error;
+        }
+        // First-page failure → propagate so caller returns isError: true.
+        if (pagesFetched === 0) {
+          throw error;
+        }
+        // Mid-stream failure → return partial with structured info.
+        return {
+          items: accumulated,
+          truncated: false,
+          partialFailure: {
+            message: handleApiError(error),
+            kind: classifyError(error),
+            pagesSucceeded: pagesFetched
+          }
+        };
+      }
+    }
+
+    return { items: accumulated, truncated };
+  };
 }
 
 // I-5: Test-only reset hook for clearing cached clients between tests.

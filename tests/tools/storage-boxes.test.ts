@@ -562,6 +562,84 @@ describe("registerStorageBoxTools — handler integration (I-7)", () => {
 
     expect(result.content[0].text).toBe("No subaccounts found for Storage Box 42.");
   });
+
+  it("hetzner_list_storage_boxes forwards label_selector as query param", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(1)], null));
+
+    await handler({ response_format: "markdown", label_selector: "env=prod" });
+
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/storage_boxes",
+      expect.anything(),
+      "GET",
+      undefined,
+      expect.objectContaining({ label_selector: "env=prod" })
+    );
+  });
+
+  it("hetzner_list_storage_boxes forwards name as query param", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(1)], null));
+
+    await handler({ response_format: "markdown", name: "my-box" });
+
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/storage_boxes",
+      expect.anything(),
+      "GET",
+      undefined,
+      expect.objectContaining({ name: "my-box" })
+    );
+  });
+
+  it("hetzner_list_storage_boxes without filters does not send label_selector or name", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_boxes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeBox(1)], null));
+
+    await handler({ response_format: "markdown" });
+
+    const callParams = (mockedRequest.mock.calls[0] as unknown[])[4] as Record<string, unknown>;
+    expect(callParams).not.toHaveProperty("label_selector");
+    expect(callParams).not.toHaveProperty("name");
+  });
+
+  it("hetzner_list_storage_box_subaccounts forwards username as query param", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [baseSubaccount],
+      meta: { pagination: { next_page: null } }
+    });
+
+    await handler({ id: 42, response_format: "markdown", username: "u123-sub1" });
+
+    expect(mockedRequest).toHaveBeenCalledWith(
+      "/storage_boxes/42/subaccounts",
+      expect.anything(),
+      "GET",
+      undefined,
+      expect.objectContaining({ username: "u123-sub1" })
+    );
+  });
+
+  it("hetzner_list_storage_box_subaccounts without username returns all subaccounts", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_subaccounts")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      subaccounts: [baseSubaccount],
+      meta: { pagination: { next_page: null } }
+    });
+
+    const result = await handler({ id: 1, response_format: "markdown" });
+
+    const callParams = (mockedRequest.mock.calls[0] as unknown[])[4] as Record<string, unknown>;
+    expect(callParams).not.toHaveProperty("username");
+    expect(result.content[0].text).toContain("Found 1 subaccount(s)");
+  });
 });
 
 const baseSnapshot: HetznerStorageBoxSnapshot = {

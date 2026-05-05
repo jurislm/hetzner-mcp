@@ -141,9 +141,24 @@ export const HetznerSSHKeySchema = z.object({
 });
 export type HetznerSSHKey = z.infer<typeof HetznerSSHKeySchema>;
 
+// Pagination meta envelope for Cloud API list responses (mirrors unified API).
+// Only next_page is consumed by createPaginatedFetch; other fields are optional
+// to avoid ZodError if the API omits them.
+const CloudMetaSchema = z.object({
+  pagination: z.object({
+    page: z.number().optional(),
+    per_page: z.number().optional(),
+    previous_page: z.number().nullable().optional(),
+    next_page: z.number().nullable(),
+    last_page: z.number().nullable().optional(),
+    total_entries: z.number().nullable().optional()
+  }).optional()
+}).optional();
+
 // API Response wrappers
 export const ListServersResponseSchema = z.object({
-  servers: z.array(HetznerServerSchema)
+  servers: z.array(HetznerServerSchema),
+  meta: CloudMetaSchema
 });
 export type ListServersResponse = z.infer<typeof ListServersResponseSchema>;
 
@@ -180,7 +195,8 @@ export const ListLocationsResponseSchema = z.object({
 export type ListLocationsResponse = z.infer<typeof ListLocationsResponseSchema>;
 
 export const ListSSHKeysResponseSchema = z.object({
-  ssh_keys: z.array(HetznerSSHKeySchema)
+  ssh_keys: z.array(HetznerSSHKeySchema),
+  meta: CloudMetaSchema
 });
 export type ListSSHKeysResponse = z.infer<typeof ListSSHKeysResponseSchema>;
 

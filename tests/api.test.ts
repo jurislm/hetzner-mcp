@@ -6,9 +6,10 @@ import {
   getStorageBoxApiClient,
   handleApiError,
   makeStorageBoxApiRequest,
+  createPaginatedFetch,
   __resetClientsForTesting
 } from "../src/api.js";
-import { ListStorageBoxesResponseSchema } from "../src/types.js";
+import { ListStorageBoxesResponseSchema, HetznerMetaSchema } from "../src/types.js";
 
 beforeEach(() => {
   __resetClientsForTesting();
@@ -325,5 +326,146 @@ describe("makeStorageBoxApiRequest schema validation (I-8 — end-to-end)", () =
     const formatted = handleApiError(caught);
     expect(formatted).toContain("unexpected response shape");
     expect(formatted).toContain("storage_boxes");
+  });
+});
+
+// Tests for the shared createPaginatedFetch factory (D-1 from design).
+// Uses a minimal schema with meta envelope — independent of makeStorageBoxApiRequest.
+describe("createPaginatedFetch", () => {
+  const ItemSchema = z.object({ id: z.number() });
+  const ResponseSchema = z.object({
+    items: z.array(ItemSchema),
+    meta: z.object({
+      pagination: HetznerMetaSchema.shape.pagination
+    }).optional()
+  });
+  type Resp = z.infer<typeof ResponseSchema>;
+
+  function makeResp(ids: number[], nextPage: number | null): Resp {
+    return {
+      items: ids.map((id) => ({ id })),
+      meta: { pagination: { next_page: nextPage } }
+    };
+  }
+
+  const mockFn = vi.fn<Parameters<typeof makeStorageBoxApiRequest>, ReturnType<typeof makeStorageBoxApiRequest>>();
+  const fetch = createPaginatedFetch(mockFn as Parameters<typeof createPaginatedFetch>[0]);
+
+  beforeEach(() => mockFn.mockReset());
+
+  it("returns single page when next_page is null on first response", async () => {
+    mockFn.mockResolvedValueOnce(makeResp([1, 2], null) as never);
+
+    const result = await fetch(
+      "/items",
+      ResponseSchema as z.ZodType<Resp>,
+      (r) => r.items
+    );
+
+    expect(result.items.map((i) => i.id)).toEqual([1, 2]);
+    expect(result.truncated).toBe(false);
+    expect(result.partialFailure).toBeUndefined();
+    expect(mockFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("traverses multiple pages and concatenates results in order", async () => {
+    mockFn
+      .mockResolvedValueOnce(makeResp([1, 2], 2) as never)
+      .mockResolvedValueOnce(makeResp([3, 4], 3) as never)
+      .mockResolvedValueOnce(makeResp([5], null) as never);
+
+    const result = await fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items);
+
+    expect(result.items.map((i) => i.id)).toEqual([1, 2, 3, 4, 5]);
+    expect(result.truncated).toBe(false);
+    expect(mockFn).toHaveBeenCalledTimes(3);
+  });
+
+  it("stops at hard cap (5 pages) and sets truncated", async () => {
+    for (let i = 1; i <= 6; i++) {
+      mockFn.mockResolvedValueOnce(makeResp([i], i + 1) as never);
+    }
+
+    const result = await fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items);
+
+    expect(result.items).toHaveLength(5);
+    expect(result.truncated).toBe(true);
+    expect(mockFn).toHaveBeenCalledTimes(5);
+  });
+
+  it("propagates first-page failure (caller should return isError: true)", async () => {
+    mockFn.mockRejectedValueOnce(new Error("first-page boom") as never);
+
+    await expect(
+      fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items)
+    ).rejects.toThrow("first-page boom");
+
+    expect(mockFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns partial results with partialFailure on mid-stream error", async () => {
+    mockFn
+      .mockResolvedValueOnce(makeResp([1, 2], 2) as never)
+      .mockRejectedValueOnce(new Error("page-2 boom") as never);
+
+    const result = await fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items);
+
+    expect(result.items.map((i) => i.id)).toEqual([1, 2]);
+    expect(result.truncated).toBe(false);
+    expect(result.partialFailure).toBeDefined();
+    expect(result.partialFailure?.kind).toBe("other");
+    expect(result.partialFailure?.pagesSucceeded).toBe(1);
+    expect(mockFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("propagates ZodError mid-stream instead of returning partial", async () => {
+    mockFn
+      .mockResolvedValueOnce(makeResp([1], 2) as never)
+      .mockRejectedValueOnce(new z.ZodError([
+        { code: "invalid_type", path: ["items", 0, "id"], message: "expected number", input: "x", expected: "number" }
+      ]) as never);
+
+    await expect(
+      fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items)
+    ).rejects.toBeInstanceOf(z.ZodError);
+
+    expect(mockFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("forwards extraParams as query params on every page request", async () => {
+    mockFn.mockResolvedValueOnce(makeResp([1], null) as never);
+
+    await fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items, 25, { label_selector: "env=prod" });
+
+    expect(mockFn).toHaveBeenCalledWith(
+      "/items",
+      expect.anything(),
+      "GET",
+      undefined,
+      expect.objectContaining({ label_selector: "env=prod" })
+    );
+  });
+
+  it("classifies axios HTTP error as 'http' kind in partialFailure", async () => {
+    const httpError = Object.assign(new Error("503"), { response: { status: 503 }, isAxiosError: true });
+    mockFn
+      .mockResolvedValueOnce(makeResp([1], 2) as never)
+      .mockRejectedValueOnce(httpError as never);
+
+    const result = await fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items);
+
+    expect(result.partialFailure?.kind).toBe("http");
+    expect(result.partialFailure?.pagesSucceeded).toBe(1);
+  });
+
+  it("classifies axios network error as 'network' kind in partialFailure", async () => {
+    const netError = Object.assign(new Error("ECONNRESET"), { code: "ECONNRESET", isAxiosError: true });
+    mockFn
+      .mockResolvedValueOnce(makeResp([1], 2) as never)
+      .mockRejectedValueOnce(netError as never);
+
+    const result = await fetch("/items", ResponseSchema as z.ZodType<Resp>, (r) => r.items);
+
+    expect(result.partialFailure?.kind).toBe("network");
   });
 });

@@ -1,8 +1,15 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { makeApiRequest, handleApiError } from "../api.js";
+import {
+  makeApiRequest,
+  handleApiError,
+  createPaginatedFetch,
+  PAGINATION_HARD_CAP_PAGES,
+  PartialFailure
+} from "../api.js";
 import {
   ResponseFormat,
+  ListSSHKeysResponse,
   ListSSHKeysResponseSchema,
   GetSSHKeyResponseSchema,
   CreateSSHKeyResponseSchema,
@@ -10,6 +17,10 @@ import {
 } from "../types.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
+const CLOUD_DEFAULT_PER_PAGE = 25;
+const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
+
+const paginatedFetch = createPaginatedFetch(makeApiRequest);
 
 function formatSSHKey(key: HetznerSSHKey): string {
   const lines = [
@@ -31,9 +42,14 @@ export function registerSSHKeyTools(server: McpServer): void {
       title: "List SSH Keys",
       description: `List all SSH keys in the project.
 
+By default fetches all pages (cap: ${PAGINATION_HARD_CAP_PAGES} pages × ${CLOUD_DEFAULT_PER_PAGE} per page = ${PAGINATION_HARD_CAP_PAGES * CLOUD_DEFAULT_PER_PAGE} keys).
+Supply explicit \`page\` and/or \`per_page\` to fetch a single page.
+
 Returns all SSH public keys that have been added to this project.
 SSH keys are used to authenticate when connecting to servers.`,
       inputSchema: z.object({
+        page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
+        per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 25."),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -45,16 +61,38 @@ SSH keys are used to authenticate when connecting to servers.`,
     },
     async (params) => {
       try {
-        const data = await makeApiRequest("/ssh_keys", ListSSHKeysResponseSchema);
-        const keys = data.ssh_keys;
+        let keys: HetznerSSHKey[];
+        let truncated = false;
+        let partialFailure: PartialFailure | undefined;
+
+        if (params.page !== undefined) {
+          const data = await makeApiRequest(
+            "/ssh_keys",
+            ListSSHKeysResponseSchema,
+            "GET",
+            undefined,
+            { page: params.page, per_page: params.per_page ?? CLOUD_DEFAULT_PER_PAGE }
+          );
+          keys = data.ssh_keys;
+        } else {
+          const result = await paginatedFetch<ListSSHKeysResponse, HetznerSSHKey>(
+            "/ssh_keys",
+            ListSSHKeysResponseSchema,
+            (r) => r.ssh_keys,
+            params.per_page ?? CLOUD_DEFAULT_PER_PAGE
+          );
+          keys = result.items;
+          truncated = result.truncated;
+          partialFailure = result.partialFailure;
+        }
 
         if (params.response_format === ResponseFormat.JSON) {
           return {
-            content: [{ type: "text", text: JSON.stringify(keys, null, 2) }]
+            content: [{ type: "text", text: JSON.stringify({ ssh_keys: keys, truncated, partialFailure }, null, 2) }]
           };
         }
 
-        if (keys.length === 0) {
+        if (keys.length === 0 && !partialFailure) {
           return {
             content: [{ type: "text", text: "No SSH keys found. Use `hetzner_create_ssh_key` to add one." }]
           };
@@ -64,6 +102,12 @@ SSH keys are used to authenticate when connecting to servers.`,
         for (const key of keys) {
           lines.push(formatSSHKey(key));
           lines.push("");
+        }
+        if (truncated) {
+          lines.push(TRUNCATION_NOTE);
+        }
+        if (partialFailure) {
+          lines.push(`> ⚠️ Partial result: pagination failed after ${partialFailure.pagesSucceeded} page(s) (${partialFailure.kind}): ${partialFailure.message}`);
         }
 
         return {
