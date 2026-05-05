@@ -399,7 +399,7 @@ function captureRegisteredTools(): CapturedTool[] {
 }
 
 describe("registerStorageBoxTools — handler integration (I-7)", () => {
-  it("registers exactly 6 tools with the expected names", () => {
+  it("registers exactly 20 tools with the expected names", () => {
     const tools = captureRegisteredTools();
     expect(tools.map((t) => t.name)).toEqual([
       "hetzner_list_storage_boxes",
@@ -407,6 +407,20 @@ describe("registerStorageBoxTools — handler integration (I-7)", () => {
       "hetzner_list_storage_box_subaccounts",
       "hetzner_list_storage_box_snapshots",
       "hetzner_create_storage_box_snapshot",
+      "hetzner_create_storage_box",
+      "hetzner_update_storage_box",
+      "hetzner_delete_storage_box",
+      "hetzner_list_storage_box_folders",
+      "hetzner_create_storage_box_subaccount",
+      "hetzner_update_storage_box_subaccount",
+      "hetzner_delete_storage_box_subaccount",
+      "hetzner_delete_storage_box_snapshot",
+      "hetzner_change_storage_box_protection",
+      "hetzner_change_storage_box_type",
+      "hetzner_reset_storage_box_password",
+      "hetzner_update_storage_box_access_settings",
+      "hetzner_enable_storage_box_snapshot_plan",
+      "hetzner_disable_storage_box_snapshot_plan",
       "hetzner_rollback_storage_box_snapshot"
     ]);
   });
@@ -932,5 +946,428 @@ describe("hetzner_rollback_storage_box_snapshot handler", () => {
     expect(tool.opts.annotations?.readOnlyHint).toBe(false);
     expect(tool.opts.description).toMatch(/destructive/i);
     expect(tool.opts.description).toMatch(/overwrite/i);
+  });
+});
+
+describe("hetzner_create_storage_box", () => {
+  it("returns markdown with box and action on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: baseBox, action: baseAction });
+
+    const result = await handler({
+      storage_box_type: "bx11",
+      location: "fsn1",
+      name: "new-box",
+      password: "TestP@ss123!",
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Storage Box Created");
+    expect(result.content[0].text).toContain("Provisioning Action");
+  });
+
+  it("returns JSON on success with json format", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: baseBox, action: baseAction });
+
+    const result = await handler({
+      storage_box_type: "bx11",
+      location: "fsn1",
+      name: "new-box",
+      password: "TestP@ss123!",
+      response_format: "json"
+    });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.storage_box).toBeDefined();
+    expect(parsed.action).toBeDefined();
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("invalid type"));
+
+    const result = await handler({
+      storage_box_type: "invalid",
+      location: "fsn1",
+      name: "bad",
+      password: "TestP@ss123!",
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBe(true);
+  });
+
+  it("description warns about cost", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(tool.opts.description).toMatch(/costs?/i);
+  });
+});
+
+describe("hetzner_update_storage_box", () => {
+  it("returns markdown with updated box on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: { ...baseBox, name: "renamed-box" } });
+
+    const result = await handler({ id: 1, name: "renamed-box", response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Storage Box Updated");
+    expect(result.content[0].text).toContain("renamed-box");
+  });
+
+  it("returns JSON format on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ storage_box: baseBox });
+
+    const result = await handler({ id: 1, name: "box", response_format: "json" });
+
+    expect(JSON.parse(result.content[0].text).id).toBe(1);
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999, name: "x", response_format: "markdown" });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_delete_storage_box", () => {
+  it("returns action status on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_delete_storage_box")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "delete" } });
+
+    const result = await handler({ id: 1 });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("being deleted");
+    expect(result.content[0].text).toContain("running");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_delete_storage_box")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999 });
+    expect(result.isError).toBe(true);
+  });
+
+  it("declares destructiveHint: true", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_delete_storage_box")!;
+    expect(tool.opts.annotations?.destructiveHint).toBe(true);
+  });
+});
+
+describe("hetzner_list_storage_box_folders", () => {
+  it("returns folder list in markdown on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_folders")!.handler;
+    mockedRequest.mockResolvedValueOnce({ folders: ["backup", ".ssh"] });
+
+    const result = await handler({ id: 1, response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("backup");
+    expect(result.content[0].text).toContain(".ssh");
+  });
+
+  it("returns empty-state message when no folders", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_folders")!.handler;
+    mockedRequest.mockResolvedValueOnce({ folders: [] });
+
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).toContain("No folders");
+  });
+
+  it("returns JSON format", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_folders")!.handler;
+    mockedRequest.mockResolvedValueOnce({ folders: ["data"] });
+
+    const result = await handler({ id: 1, response_format: "json" });
+    expect(JSON.parse(result.content[0].text).folders).toEqual(["data"]);
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_storage_box_folders")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999, response_format: "markdown" });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_create_storage_box_subaccount", () => {
+  it("returns markdown with subaccount on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_subaccount")!.handler;
+    mockedRequest.mockResolvedValueOnce({ subaccount: baseSubaccount });
+
+    const result = await handler({ id: 1, response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Subaccount Created");
+    expect(result.content[0].text).toContain("u123-sub1");
+  });
+
+  it("returns JSON format", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_subaccount")!.handler;
+    mockedRequest.mockResolvedValueOnce({ subaccount: baseSubaccount });
+
+    const result = await handler({ id: 1, response_format: "json" });
+    expect(JSON.parse(result.content[0].text).username).toBe("u123-sub1");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box_subaccount")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999, response_format: "markdown" });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_update_storage_box_subaccount", () => {
+  it("returns markdown with updated subaccount on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box_subaccount")!.handler;
+    mockedRequest.mockResolvedValueOnce({ subaccount: { ...baseSubaccount, comment: "updated" } });
+
+    const result = await handler({ id: 1, username: "u123-sub1", comment: "updated", response_format: "markdown" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Subaccount Updated");
+    expect(result.content[0].text).toContain("u123-sub1");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box_subaccount")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 1, username: "ghost", response_format: "markdown" });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_delete_storage_box_subaccount", () => {
+  it("returns confirmation message on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_delete_storage_box_subaccount")!.handler;
+    mockedRequest.mockResolvedValueOnce(undefined);
+
+    const result = await handler({ id: 1, username: "u123-sub1" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("u123-sub1");
+    expect(result.content[0].text).toContain("deleted");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_delete_storage_box_subaccount")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 1, username: "ghost" });
+    expect(result.isError).toBe(true);
+  });
+
+  it("declares destructiveHint: true", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
+    expect(tool.opts.annotations?.destructiveHint).toBe(true);
+  });
+});
+
+describe("hetzner_delete_storage_box_snapshot", () => {
+  it("returns confirmation message on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_delete_storage_box_snapshot")!.handler;
+    mockedRequest.mockResolvedValueOnce(undefined);
+
+    const result = await handler({ id: 1, snapshot_id: "my-snap" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("my-snap");
+    expect(result.content[0].text).toContain("deleted");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_delete_storage_box_snapshot")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 1, snapshot_id: "ghost-snap" });
+    expect(result.isError).toBe(true);
+  });
+
+  it("declares destructiveHint: true", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    expect(tool.opts.annotations?.destructiveHint).toBe(true);
+  });
+});
+
+describe("hetzner_change_storage_box_protection", () => {
+  it("returns enabled confirmation on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_change_storage_box_protection")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "change_protection" } });
+
+    const result = await handler({ id: 1, delete: true });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("enabled");
+  });
+
+  it("returns disabled confirmation when delete=false", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_change_storage_box_protection")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: baseAction });
+
+    const result = await handler({ id: 1, delete: false });
+    expect(result.content[0].text).toContain("disabled");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_change_storage_box_protection")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999, delete: true });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_change_storage_box_type", () => {
+  it("returns action status on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_change_storage_box_type")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "change_type" } });
+
+    const result = await handler({ id: 1, storage_box_type: "bx20" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("bx20");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_change_storage_box_type")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("invalid type"));
+
+    const result = await handler({ id: 1, storage_box_type: "invalid" });
+    expect(result.isError).toBe(true);
+  });
+
+  it("declares destructiveHint: true", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_change_storage_box_type")!;
+    expect(tool.opts.annotations?.destructiveHint).toBe(true);
+  });
+});
+
+describe("hetzner_reset_storage_box_password", () => {
+  it("returns action status on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_reset_storage_box_password")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "reset_password" } });
+
+    const result = await handler({ id: 1, password: "NewP@ss123!" });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Password reset");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_reset_storage_box_password")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999, password: "NewP@ss123!" });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_update_storage_box_access_settings", () => {
+  it("returns action status on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box_access_settings")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "update_access_settings" } });
+
+    const result = await handler({ id: 1, ssh_enabled: false, samba_enabled: false });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Access settings updated");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_update_storage_box_access_settings")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999 });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_enable_storage_box_snapshot_plan", () => {
+  it("returns action status on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_enable_storage_box_snapshot_plan")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "enable_snapshot_plan" } });
+
+    const result = await handler({ id: 1, hour: 3, minute: 0, day_of_week: null, day_of_month: null });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Snapshot plan enabled");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_enable_storage_box_snapshot_plan")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999, hour: 3, minute: 0, day_of_week: null, day_of_month: null });
+    expect(result.isError).toBe(true);
+  });
+});
+
+describe("hetzner_disable_storage_box_snapshot_plan", () => {
+  it("returns action status on success", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_disable_storage_box_snapshot_plan")!.handler;
+    mockedRequest.mockResolvedValueOnce({ action: { ...baseAction, command: "disable_snapshot_plan" } });
+
+    const result = await handler({ id: 1 });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toContain("Snapshot plan disabled");
+  });
+
+  it("returns isError on API failure", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_disable_storage_box_snapshot_plan")!.handler;
+    mockedRequest.mockRejectedValueOnce(new Error("not found"));
+
+    const result = await handler({ id: 9999 });
+    expect(result.isError).toBe(true);
   });
 });

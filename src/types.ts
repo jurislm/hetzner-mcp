@@ -354,6 +354,44 @@ export const RollbackStorageBoxSnapshotResponseSchema = z.object({
 });
 export type RollbackStorageBoxSnapshotResponse = z.infer<typeof RollbackStorageBoxSnapshotResponseSchema>;
 
+// Shared action response for DELETE and action endpoints.
+// RollbackStorageBoxSnapshotResponseSchema is kept as a separate alias for
+// backwards compat; new tools use StorageBoxActionResponseSchema directly.
+export const StorageBoxActionResponseSchema = z.object({
+  action: HetznerActionSchema
+});
+export type StorageBoxActionResponse = z.infer<typeof StorageBoxActionResponseSchema>;
+
+// Create Storage Box — response includes both the new box and an action.
+export const CreateStorageBoxResponseSchema = z.object({
+  storage_box: HetznerStorageBoxSchema,
+  action: HetznerActionSchema
+});
+export type CreateStorageBoxResponse = z.infer<typeof CreateStorageBoxResponseSchema>;
+
+// Update Storage Box — returns just the updated box.
+export const UpdateStorageBoxResponseSchema = z.object({
+  storage_box: HetznerStorageBoxSchema
+});
+export type UpdateStorageBoxResponse = z.infer<typeof UpdateStorageBoxResponseSchema>;
+
+// List folders — folders is a plain string array.
+export const ListFoldersResponseSchema = z.object({
+  folders: z.array(z.string())
+});
+export type ListFoldersResponse = z.infer<typeof ListFoldersResponseSchema>;
+
+// Subaccount create / update — returns the subaccount object.
+export const CreateSubaccountResponseSchema = z.object({
+  subaccount: HetznerStorageBoxSubaccountSchema
+});
+export type CreateSubaccountResponse = z.infer<typeof CreateSubaccountResponseSchema>;
+
+export const UpdateSubaccountResponseSchema = z.object({
+  subaccount: HetznerStorageBoxSubaccountSchema
+});
+export type UpdateSubaccountResponse = z.infer<typeof UpdateSubaccountResponseSchema>;
+
 // API Error
 export interface HetznerAPIError {
   error: {

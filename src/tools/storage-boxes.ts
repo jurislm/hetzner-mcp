@@ -18,6 +18,12 @@ import {
   ListStorageBoxSnapshotsResponseSchema,
   CreateStorageBoxSnapshotResponseSchema,
   RollbackStorageBoxSnapshotResponseSchema,
+  StorageBoxActionResponseSchema,
+  CreateStorageBoxResponseSchema,
+  UpdateStorageBoxResponseSchema,
+  ListFoldersResponseSchema,
+  CreateSubaccountResponseSchema,
+  UpdateSubaccountResponseSchema,
   HetznerStorageBox,
   HetznerStorageBoxSubaccount,
   HetznerStorageBoxSnapshot,
@@ -529,6 +535,662 @@ Returns the new snapshot id and the action envelope (status, progress).`,
           content: [{ type: "text", text: handleApiError(error) }],
           isError: true
         };
+      }
+    }
+  );
+
+  // Create Storage Box
+  server.registerTool(
+    "hetzner_create_storage_box",
+    {
+      title: "Create Storage Box",
+      description: `Create a new Storage Box.
+
+⚠️ **This action will incur costs** based on the selected storage box type.
+
+Required parameters:
+- storage_box_type: Plan name (e.g., "bx11", "bx20"). Use hetzner_list_server_types for reference.
+- location: Datacenter location (e.g., "fsn1", "nbg1", "hel1").
+- name: Name for the storage box.
+- password: Initial password (min 12 chars, must include uppercase, lowercase, number, and special character).
+
+Returns the new Storage Box and an action tracking provisioning.`,
+      inputSchema: z.object({
+        storage_box_type: z.string().min(1).describe("Storage box type name (e.g., 'bx11', 'bx20')"),
+        location: z.string().min(1).describe("Location name (e.g., 'fsn1', 'nbg1', 'hel1')"),
+        name: z.string().min(1).describe("Name for the storage box"),
+        password: z.string().min(12).describe("Initial password (min 12 chars, must include uppercase, lowercase, number, special char)"),
+        labels: z.record(z.string(), z.string()).optional().describe("Optional key-value labels"),
+        ssh_enabled: z.boolean().optional().describe("Enable SSH access"),
+        samba_enabled: z.boolean().optional().describe("Enable Samba access"),
+        webdav_enabled: z.boolean().optional().describe("Enable WebDAV access"),
+        zfs_enabled: z.boolean().optional().describe("Enable ZFS access"),
+        reachable_externally: z.boolean().optional().describe("Allow external network access"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const body: Record<string, unknown> = {
+          storage_box_type: params.storage_box_type,
+          location: params.location,
+          name: params.name,
+          password: params.password
+        };
+        if (params.labels) body.labels = params.labels;
+        const accessSettings: Record<string, boolean> = {};
+        if (params.ssh_enabled !== undefined) accessSettings.ssh_enabled = params.ssh_enabled;
+        if (params.samba_enabled !== undefined) accessSettings.samba_enabled = params.samba_enabled;
+        if (params.webdav_enabled !== undefined) accessSettings.webdav_enabled = params.webdav_enabled;
+        if (params.zfs_enabled !== undefined) accessSettings.zfs_enabled = params.zfs_enabled;
+        if (params.reachable_externally !== undefined) accessSettings.reachable_externally = params.reachable_externally;
+        if (Object.keys(accessSettings).length > 0) body.access_settings = accessSettings;
+
+        const data = await makeStorageBoxApiRequest("/storage_boxes", CreateStorageBoxResponseSchema, "POST", body);
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        }
+
+        const lines = [
+          "# Storage Box Created",
+          "",
+          formatStorageBox(data.storage_box),
+          "",
+          "## Provisioning Action",
+          formatAction(data.action)
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Update Storage Box
+  server.registerTool(
+    "hetzner_update_storage_box",
+    {
+      title: "Update Storage Box",
+      description: `Update a Storage Box (rename, change labels, or toggle auto-delete).`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        name: z.string().min(1).optional().describe("New name"),
+        labels: z.record(z.string(), z.string()).optional().describe("Labels (replaces existing)"),
+        autodelete: z.boolean().optional().describe("Auto-delete on contract end"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const body: Record<string, unknown> = {};
+        if (params.name !== undefined) body.name = params.name;
+        if (params.labels !== undefined) body.labels = params.labels;
+        if (params.autodelete !== undefined) body.autodelete = params.autodelete;
+
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}`,
+          UpdateStorageBoxResponseSchema,
+          "PUT",
+          body
+        );
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return { content: [{ type: "text", text: JSON.stringify(data.storage_box, null, 2) }] };
+        }
+
+        const lines = ["# Storage Box Updated", "", formatStorageBox(data.storage_box)];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Delete Storage Box
+  server.registerTool(
+    "hetzner_delete_storage_box",
+    {
+      title: "Delete Storage Box",
+      description: `Delete a Storage Box permanently.
+
+⚠️ DESTRUCTIVE: All data, snapshots, and subaccounts will be permanently deleted.
+This action cannot be undone.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID to delete")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}`,
+          StorageBoxActionResponseSchema,
+          "DELETE"
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Storage Box ${params.id} is being deleted. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // List Storage Box Folders
+  server.registerTool(
+    "hetzner_list_storage_box_folders",
+    {
+      title: "List Storage Box Folders",
+      description: `List top-level folders inside a Storage Box.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/folders`,
+          ListFoldersResponseSchema
+        );
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+        }
+
+        if (data.folders.length === 0) {
+          return { content: [{ type: "text", text: `No folders found in Storage Box ${params.id}.` }] };
+        }
+
+        const lines = [
+          `# Folders in Storage Box ${params.id}`,
+          "",
+          ...data.folders.map((f) => `- \`${f}\``)
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Create Storage Box Subaccount
+  server.registerTool(
+    "hetzner_create_storage_box_subaccount",
+    {
+      title: "Create Storage Box Subaccount",
+      description: `Create a new subaccount for a Storage Box.
+
+The subaccount gets an auto-generated username (e.g., u12345-sub1).
+Use access settings to configure which protocols the subaccount can use.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        comment: z.string().optional().describe("Optional comment / label for this subaccount"),
+        labels: z.record(z.string(), z.string()).optional().describe("Optional key-value labels"),
+        ssh_enabled: z.boolean().optional().describe("Allow SSH access"),
+        samba_enabled: z.boolean().optional().describe("Allow Samba access"),
+        webdav_enabled: z.boolean().optional().describe("Allow WebDAV access"),
+        zfs_enabled: z.boolean().optional().describe("Allow ZFS access"),
+        reachable_externally: z.boolean().optional().describe("Allow external network access"),
+        readonly: z.boolean().optional().describe("Restrict to read-only access"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const body: Record<string, unknown> = {};
+        if (params.comment !== undefined) body.comment = params.comment;
+        if (params.labels !== undefined) body.labels = params.labels;
+        const access: Record<string, boolean> = {};
+        if (params.ssh_enabled !== undefined) access.ssh_enabled = params.ssh_enabled;
+        if (params.samba_enabled !== undefined) access.samba_enabled = params.samba_enabled;
+        if (params.webdav_enabled !== undefined) access.webdav_enabled = params.webdav_enabled;
+        if (params.zfs_enabled !== undefined) access.zfs_enabled = params.zfs_enabled;
+        if (params.reachable_externally !== undefined) access.reachable_externally = params.reachable_externally;
+        if (params.readonly !== undefined) access.readonly = params.readonly;
+        if (Object.keys(access).length > 0) body.access_settings = access;
+
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/subaccounts`,
+          CreateSubaccountResponseSchema,
+          "POST",
+          body
+        );
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return { content: [{ type: "text", text: JSON.stringify(data.subaccount, null, 2) }] };
+        }
+
+        const lines = [
+          `# Subaccount Created for Storage Box ${params.id}`,
+          "",
+          formatSubaccount(data.subaccount)
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Update Storage Box Subaccount
+  server.registerTool(
+    "hetzner_update_storage_box_subaccount",
+    {
+      title: "Update Storage Box Subaccount",
+      description: `Update access settings or comment for a Storage Box subaccount.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        username: z.string().min(1).describe("The subaccount username to update"),
+        comment: z.string().optional().describe("New comment"),
+        labels: z.record(z.string(), z.string()).optional().describe("Labels (replaces existing)"),
+        ssh_enabled: z.boolean().optional().describe("Allow SSH access"),
+        samba_enabled: z.boolean().optional().describe("Allow Samba access"),
+        webdav_enabled: z.boolean().optional().describe("Allow WebDAV access"),
+        zfs_enabled: z.boolean().optional().describe("Allow ZFS access"),
+        reachable_externally: z.boolean().optional().describe("Allow external network access"),
+        readonly: z.boolean().optional().describe("Restrict to read-only access"),
+        response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const body: Record<string, unknown> = {};
+        if (params.comment !== undefined) body.comment = params.comment;
+        if (params.labels !== undefined) body.labels = params.labels;
+        const access: Record<string, boolean> = {};
+        if (params.ssh_enabled !== undefined) access.ssh_enabled = params.ssh_enabled;
+        if (params.samba_enabled !== undefined) access.samba_enabled = params.samba_enabled;
+        if (params.webdav_enabled !== undefined) access.webdav_enabled = params.webdav_enabled;
+        if (params.zfs_enabled !== undefined) access.zfs_enabled = params.zfs_enabled;
+        if (params.reachable_externally !== undefined) access.reachable_externally = params.reachable_externally;
+        if (params.readonly !== undefined) access.readonly = params.readonly;
+        if (Object.keys(access).length > 0) body.access_settings = access;
+
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/subaccounts/${params.username}`,
+          UpdateSubaccountResponseSchema,
+          "PUT",
+          body
+        );
+
+        if (params.response_format === ResponseFormat.JSON) {
+          return { content: [{ type: "text", text: JSON.stringify(data.subaccount, null, 2) }] };
+        }
+
+        const lines = [
+          `# Subaccount Updated: ${params.username}`,
+          "",
+          formatSubaccount(data.subaccount)
+        ];
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Delete Storage Box Subaccount
+  server.registerTool(
+    "hetzner_delete_storage_box_subaccount",
+    {
+      title: "Delete Storage Box Subaccount",
+      description: `Delete a subaccount from a Storage Box.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        username: z.string().min(1).describe("The subaccount username to delete")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/subaccounts/${params.username}`,
+          z.unknown(),
+          "DELETE"
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Subaccount \`${params.username}\` has been deleted from Storage Box ${params.id}.`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Delete Storage Box Snapshot
+  server.registerTool(
+    "hetzner_delete_storage_box_snapshot",
+    {
+      title: "Delete Storage Box Snapshot",
+      description: `Delete a snapshot from a Storage Box.
+
+⚠️ DESTRUCTIVE: The snapshot will be permanently deleted and cannot be recovered.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        snapshot_id: z.string().min(1).describe("Snapshot name or numeric ID (as string)")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/snapshots/${params.snapshot_id}`,
+          z.unknown(),
+          "DELETE"
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Snapshot \`${params.snapshot_id}\` has been deleted from Storage Box ${params.id}.`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Change Storage Box Protection
+  server.registerTool(
+    "hetzner_change_storage_box_protection",
+    {
+      title: "Change Storage Box Protection",
+      description: `Enable or disable delete protection for a Storage Box.
+
+When delete protection is enabled, the Storage Box cannot be deleted until protection is removed.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        delete: z.boolean().describe("true to enable delete protection, false to disable")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/change_protection`,
+          StorageBoxActionResponseSchema,
+          "POST",
+          { delete: params.delete }
+        );
+        const status = params.delete ? "enabled" : "disabled";
+        return {
+          content: [{
+            type: "text",
+            text: `Delete protection ${status} for Storage Box ${params.id}. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Change Storage Box Type
+  server.registerTool(
+    "hetzner_change_storage_box_type",
+    {
+      title: "Change Storage Box Type",
+      description: `Upgrade or downgrade a Storage Box plan.
+
+⚠️ WARNING: Downgrading to a smaller plan may cause data loss if current usage exceeds the new plan's capacity.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        storage_box_type: z.string().min(1).describe("Target plan name (e.g., 'bx11', 'bx20', 'bx60')")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/change_type`,
+          StorageBoxActionResponseSchema,
+          "POST",
+          { storage_box_type: params.storage_box_type }
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Storage Box ${params.id} is changing to type \`${params.storage_box_type}\`. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Reset Storage Box Password
+  server.registerTool(
+    "hetzner_reset_storage_box_password",
+    {
+      title: "Reset Storage Box Password",
+      description: `Reset the password for a Storage Box.
+
+Password policy: minimum 12 characters, must include uppercase, lowercase, number, and special character.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        password: z.string().min(12).describe("New password (min 12 chars, must include uppercase, lowercase, number, special char)")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/reset_password`,
+          StorageBoxActionResponseSchema,
+          "POST",
+          { password: params.password }
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Password reset for Storage Box ${params.id}. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Update Storage Box Access Settings
+  server.registerTool(
+    "hetzner_update_storage_box_access_settings",
+    {
+      title: "Update Storage Box Access Settings",
+      description: `Update protocol access settings for a Storage Box (SSH, Samba, WebDAV, ZFS, external reachability).`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        ssh_enabled: z.boolean().optional().describe("Enable SSH access"),
+        samba_enabled: z.boolean().optional().describe("Enable Samba/CIFS access"),
+        webdav_enabled: z.boolean().optional().describe("Enable WebDAV access"),
+        zfs_enabled: z.boolean().optional().describe("Enable ZFS access"),
+        reachable_externally: z.boolean().optional().describe("Allow access from external networks")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const body: Record<string, boolean> = {};
+        if (params.ssh_enabled !== undefined) body.ssh_enabled = params.ssh_enabled;
+        if (params.samba_enabled !== undefined) body.samba_enabled = params.samba_enabled;
+        if (params.webdav_enabled !== undefined) body.webdav_enabled = params.webdav_enabled;
+        if (params.zfs_enabled !== undefined) body.zfs_enabled = params.zfs_enabled;
+        if (params.reachable_externally !== undefined) body.reachable_externally = params.reachable_externally;
+
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/update_access_settings`,
+          StorageBoxActionResponseSchema,
+          "POST",
+          body
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Access settings updated for Storage Box ${params.id}. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Enable Snapshot Plan
+  server.registerTool(
+    "hetzner_enable_storage_box_snapshot_plan",
+    {
+      title: "Enable Storage Box Snapshot Plan",
+      description: `Enable an automatic snapshot schedule for a Storage Box.
+
+Schedule options:
+- Daily: set hour (0-23), leave day_of_week and day_of_month as null
+- Weekly: set hour and day_of_week (1=Mon, 7=Sun), set day_of_month to null
+- Monthly: set hour and day_of_month (1-31), set day_of_week to null`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID"),
+        hour: z.number().int().min(0).max(23).describe("Hour to run the snapshot (0-23)"),
+        minute: z.number().int().min(0).max(59).default(0).describe("Minute to run the snapshot (0-59, default 0)"),
+        day_of_week: z.number().int().min(1).max(7).nullable().default(null).describe("Day of week (1=Mon, 7=Sun) or null for daily/monthly"),
+        day_of_month: z.number().int().min(1).max(31).nullable().default(null).describe("Day of month (1-31) or null for daily/weekly")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/enable_snapshot_plan`,
+          StorageBoxActionResponseSchema,
+          "POST",
+          {
+            minute: params.minute,
+            hour: params.hour,
+            day_of_week: params.day_of_week,
+            day_of_month: params.day_of_month
+          }
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Snapshot plan enabled for Storage Box ${params.id}. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
+      }
+    }
+  );
+
+  // Disable Snapshot Plan
+  server.registerTool(
+    "hetzner_disable_storage_box_snapshot_plan",
+    {
+      title: "Disable Storage Box Snapshot Plan",
+      description: `Disable the automatic snapshot schedule for a Storage Box.`,
+      inputSchema: z.object({
+        id: z.number().int().positive().describe("The Storage Box ID")
+      }).strict(),
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const data = await makeStorageBoxApiRequest(
+          `/storage_boxes/${params.id}/actions/disable_snapshot_plan`,
+          StorageBoxActionResponseSchema,
+          "POST",
+          {}
+        );
+        return {
+          content: [{
+            type: "text",
+            text: `Snapshot plan disabled for Storage Box ${params.id}. Action status: ${data.action.status}`
+          }]
+        };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }], isError: true };
       }
     }
   );
