@@ -14,10 +14,10 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 |--------|----------|------|------------|
 | `GET` | `/storage_boxes` | 列出所有 Storage Boxes（支援分頁、排序、label 篩選） | `hetzner_list_storage_boxes` ✅ 含 `label_selector`/`name` 篩選 |
 | `GET` | `/storage_boxes/{id}` | 取得單一 Storage Box 詳情 | `hetzner_get_storage_box` ✅ |
-| `POST` | `/storage_boxes` | 建立新 Storage Box | ❌ 未實作 |
-| `PUT` | `/storage_boxes/{id}` | 更新 Storage Box（重新命名等） | ❌ 未實作 |
-| `DELETE` | `/storage_boxes/{id}` | 刪除 Storage Box | ❌ 未實作 |
-| `GET` | `/storage_boxes/{id}/folders` | 列出 Storage Box 內的資料夾 | ❌ 未實作 |
+| `POST` | `/storage_boxes` | 建立新 Storage Box | `hetzner_create_storage_box` ✅ |
+| `PUT` | `/storage_boxes/{id}` | 更新 Storage Box（重新命名等） | `hetzner_update_storage_box` ✅ |
+| `DELETE` | `/storage_boxes/{id}` | 刪除 Storage Box | `hetzner_delete_storage_box` ✅ |
+| `GET` | `/storage_boxes/{id}/folders` | 列出 Storage Box 內的資料夾 | `hetzner_list_storage_box_folders` ✅ |
 
 ### Storage Box Object Schema
 
@@ -102,9 +102,9 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 | Method | Endpoint | 說明 | 本 MCP 實作 |
 |--------|----------|------|------------|
 | `GET` | `/storage_boxes/{id}/subaccounts` | 列出子帳號（支援分頁、`username` 篩選） | `hetzner_list_storage_box_subaccounts` ✅ 含 `username` 篩選 |
-| `POST` | `/storage_boxes/{id}/subaccounts` | 建立子帳號 | ❌ 未實作 |
-| `PUT` | `/storage_boxes/{id}/subaccounts/{username}` | 更新子帳號設定 | ❌ 未實作 |
-| `DELETE` | `/storage_boxes/{id}/subaccounts/{username}` | 刪除子帳號 | ❌ 未實作 |
+| `POST` | `/storage_boxes/{id}/subaccounts` | 建立子帳號 | `hetzner_create_storage_box_subaccount` ✅ |
+| `PUT` | `/storage_boxes/{id}/subaccounts/{username}` | 更新子帳號設定 | `hetzner_update_storage_box_subaccount` ✅ |
+| `DELETE` | `/storage_boxes/{id}/subaccounts/{username}` | 刪除子帳號 | `hetzner_delete_storage_box_subaccount` ✅ |
 
 ### Snapshots
 
@@ -112,19 +112,19 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 |--------|----------|------|------------|
 | `GET` | `/storage_boxes/{id}/snapshots` | 列出 snapshots（支援分頁、排序） | `hetzner_list_storage_box_snapshots` ✅ |
 | `POST` | `/storage_boxes/{id}/snapshots` | 觸發即時 snapshot | `hetzner_create_storage_box_snapshot` ✅ |
-| `DELETE` | `/storage_boxes/{id}/snapshots/{snapshot_id}` | 刪除指定 snapshot | ❌ 未實作 |
+| `DELETE` | `/storage_boxes/{id}/snapshots/{snapshot_id}` | 刪除指定 snapshot | `hetzner_delete_storage_box_snapshot` ✅ |
 
 ### Actions
 
 | Method | Endpoint | 說明 | 本 MCP 實作 |
 |--------|----------|------|------------|
 | `POST` | `/storage_boxes/{id}/actions/rollback_snapshot` | 回滾至指定 snapshot（`snapshot` 欄位接受名稱或 ID） | `hetzner_rollback_storage_box_snapshot` ✅ |
-| `POST` | `/storage_boxes/{id}/actions/change_protection` | 設定刪除保護 | ❌ 未實作 |
-| `POST` | `/storage_boxes/{id}/actions/change_type` | 升降級 Storage Box 規格 | ❌ 未實作 |
-| `POST` | `/storage_boxes/{id}/actions/reset_password` | 重設密碼 | ❌ 未實作 |
-| `POST` | `/storage_boxes/{id}/actions/update_access_settings` | 更新 SSH / Samba / WebDAV / ZFS / 外部連線設定 | ❌ 未實作 |
-| `POST` | `/storage_boxes/{id}/actions/enable_snapshot_plan` | 啟用自動 snapshot 計畫 | ❌ 未實作 |
-| `POST` | `/storage_boxes/{id}/actions/disable_snapshot_plan` | 停用自動 snapshot 計畫 | ❌ 未實作 |
+| `POST` | `/storage_boxes/{id}/actions/change_protection` | 設定刪除保護 | `hetzner_change_storage_box_protection` ✅ |
+| `POST` | `/storage_boxes/{id}/actions/change_type` | 升降級 Storage Box 規格 | `hetzner_change_storage_box_type` ✅ |
+| `POST` | `/storage_boxes/{id}/actions/reset_password` | 重設密碼 | `hetzner_reset_storage_box_password` ✅ |
+| `POST` | `/storage_boxes/{id}/actions/update_access_settings` | 更新 SSH / Samba / WebDAV / ZFS / 外部連線設定 | `hetzner_update_storage_box_access_settings` ✅ |
+| `POST` | `/storage_boxes/{id}/actions/enable_snapshot_plan` | 啟用自動 snapshot 計畫 | `hetzner_enable_storage_box_snapshot_plan` ✅ |
+| `POST` | `/storage_boxes/{id}/actions/disable_snapshot_plan` | 停用自動 snapshot 計畫 | `hetzner_disable_storage_box_snapshot_plan` ✅ |
 
 **Actions Request Bodies：**
 
@@ -215,14 +215,14 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 
 | 分類 | 官方端點數 | 已實作 | 未實作 |
 |------|-----------|--------|--------|
-| Storage Boxes（核心） | 6 | 2 | 4 |
-| Storage Box Subaccounts | 4 | 1 | 3 |
-| Storage Box Snapshots | 3 | 2 | 1 |
-| Storage Box Actions | 7 | 1 | 6 |
+| Storage Boxes（核心） | 6 | 6 | 0 |
+| Storage Box Subaccounts | 4 | 4 | 0 |
+| Storage Box Snapshots | 3 | 3 | 0 |
+| Storage Box Actions | 7 | 7 | 0 |
 | Servers | 7 | 7 | 0 |
 | SSH Keys | 4 | 4 | 0 |
 | Reference Data | 3 | 3 | 0 |
-| **合計** | **34** | **20** | **14** |
+| **合計** | **34** | **34** | **0** |
 
 ---
 
