@@ -42,7 +42,7 @@ const baseBox: HetznerStorageBox = {
   status: "active",
   server: "u123.your-storagebox.de",
   system: "FSN1-BX355",
-  storage_box_type: { id: 1, name: "bx11", description: "BX11" },
+  storage_box_type: { id: 1, name: "bx11", description: "BX11", size: 1099511627776 },
   location: { id: 3, name: "fsn1", description: "Falkenstein DC Park 1", country: "DE", city: "Falkenstein" },
   labels: {},
   protection: { delete: false },
@@ -105,12 +105,22 @@ describe("formatStorageBox", () => {
     expect(out).toContain("- **Server**: —");
   });
 
-  it("shows storage usage from stats.size_data and stats.size", () => {
+  it("shows storage used from stats.size_data and total from storage_box_type.size", () => {
+    // stats.size (2 TiB) differs from storage_box_type.size (1 TiB) to prove
+    // the total comes from storage_box_type.size, not stats.size.
     const out = formatStorageBox({
       ...baseBox,
-      stats: { size: 1024 ** 4, size_data: 512 * 1024 ** 3, size_snapshots: 0 }
+      stats: { size: 2 * 1024 ** 4, size_data: 512 * 1024 ** 3, size_snapshots: 0 }
     });
     expect(out).toContain("512.0 GiB used / 1024.0 GiB total");
+  });
+
+  it("shows 'unknown' for total when storage_box_type.size is absent", () => {
+    const out = formatStorageBox({
+      ...baseBox,
+      storage_box_type: { id: 1, name: "bx11", description: "BX11" }
+    });
+    expect(out).toContain("used / unknown total");
   });
 
   it("shows snapshot usage from stats.size_snapshots", () => {
