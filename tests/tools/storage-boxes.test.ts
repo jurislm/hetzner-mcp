@@ -115,13 +115,6 @@ describe("formatStorageBox", () => {
     expect(out).toContain("512.0 GiB used / 1024.0 GiB total");
   });
 
-  it("shows 'unknown' for total when storage_box_type.size is absent", () => {
-    const out = formatStorageBox({
-      ...baseBox,
-      storage_box_type: { id: 1, name: "bx11", description: "BX11" }
-    });
-    expect(out).toContain("used / unknown total");
-  });
 
   it("shows snapshot usage from stats.size_snapshots", () => {
     const out = formatStorageBox({

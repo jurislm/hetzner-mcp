@@ -236,7 +236,7 @@ export const HetznerStorageBoxSchema = z.object({
     id: z.number(),
     name: z.string(),
     description: z.string(),
-    size: z.number().optional()
+    size: z.number()
   }).passthrough(),
   location: z.object({
     id: z.number(),
