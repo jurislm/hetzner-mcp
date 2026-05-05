@@ -12,7 +12,7 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 
 | Method | Endpoint | 說明 | 本 MCP 實作 |
 |--------|----------|------|------------|
-| `GET` | `/storage_boxes` | 列出所有 Storage Boxes（支援分頁、排序、label 篩選） | `hetzner_list_storage_boxes` ✅ |
+| `GET` | `/storage_boxes` | 列出所有 Storage Boxes（支援分頁、排序、label 篩選） | `hetzner_list_storage_boxes` ✅ 含 `label_selector`/`name` 篩選 |
 | `GET` | `/storage_boxes/{id}` | 取得單一 Storage Box 詳情 | `hetzner_get_storage_box` ✅ |
 | `POST` | `/storage_boxes` | 建立新 Storage Box | ❌ 未實作 |
 | `PUT` | `/storage_boxes/{id}` | 更新 Storage Box（重新命名等） | ❌ 未實作 |
@@ -101,7 +101,7 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 
 | Method | Endpoint | 說明 | 本 MCP 實作 |
 |--------|----------|------|------------|
-| `GET` | `/storage_boxes/{id}/subaccounts` | 列出子帳號（支援分頁、`username` 篩選） | `hetzner_list_storage_box_subaccounts` ✅ |
+| `GET` | `/storage_boxes/{id}/subaccounts` | 列出子帳號（支援分頁、`username` 篩選） | `hetzner_list_storage_box_subaccounts` ✅ 含 `username` 篩選 |
 | `POST` | `/storage_boxes/{id}/subaccounts` | 建立子帳號 | ❌ 未實作 |
 | `PUT` | `/storage_boxes/{id}/subaccounts/{username}` | 更新子帳號設定 | ❌ 未實作 |
 | `DELETE` | `/storage_boxes/{id}/subaccounts/{username}` | 刪除子帳號 | ❌ 未實作 |
@@ -180,7 +180,7 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 
 | Method | Endpoint | 說明 | 本 MCP 實作 |
 |--------|----------|------|------------|
-| `GET` | `/servers` | 列出所有伺服器 | `hetzner_list_servers` ✅ |
+| `GET` | `/servers` | 列出所有伺服器 | `hetzner_list_servers` ✅ 含分頁（auto + cap 5）|
 | `GET` | `/servers/{id}` | 取得單一伺服器詳情 | `hetzner_get_server` ✅ |
 | `POST` | `/servers` | 建立新伺服器 | `hetzner_create_server` ✅ |
 | `DELETE` | `/servers/{id}` | 刪除伺服器 | `hetzner_delete_server` ✅ |
@@ -194,7 +194,7 @@ Auth: `Authorization: Bearer <HETZNER_API_TOKEN>`
 
 | Method | Endpoint | 說明 | 本 MCP 實作 |
 |--------|----------|------|------------|
-| `GET` | `/ssh_keys` | 列出所有 SSH 金鑰 | `hetzner_list_ssh_keys` ✅ |
+| `GET` | `/ssh_keys` | 列出所有 SSH 金鑰 | `hetzner_list_ssh_keys` ✅ 含分頁（auto + cap 5）|
 | `GET` | `/ssh_keys/{id}` | 取得單一 SSH 金鑰詳情 | `hetzner_get_ssh_key` ✅ |
 | `POST` | `/ssh_keys` | 新增 SSH 公鑰 | `hetzner_create_ssh_key` ✅ |
 | `DELETE` | `/ssh_keys/{id}` | 刪除 SSH 金鑰 | `hetzner_delete_ssh_key` ✅ |

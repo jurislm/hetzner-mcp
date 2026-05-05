@@ -1,6 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { makeStorageBoxApiRequest, handleApiError } from "../api.js";
+import {
+  makeStorageBoxApiRequest,
+  handleApiError,
+  createPaginatedFetch,
+  PAGINATION_HARD_CAP_PAGES,
+  PartialFailure
+} from "../api.js";
 import {
   ResponseFormat,
   ListStorageBoxesResponse,
@@ -16,12 +22,10 @@ import {
   HetznerStorageBoxSubaccount,
   HetznerStorageBoxSnapshot,
   HetznerAction,
-  HetznerMeta,
   BooleanKeys
 } from "../types.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
-const PAGINATION_HARD_CAP_PAGES = 5;
 const DEFAULT_PER_PAGE = 50;
 
 // access_settings protocol keys in display order. Using a tuple instead of
@@ -128,94 +132,8 @@ export function formatAction(action: HetznerAction): string {
   return lines.join("\n");
 }
 
-// I-3: partialFailure is structured so callers can route by error kind
-// (retry on network, etc.) instead of parsing a flat string.
-// ZodError is intentionally absent: paginatedFetch re-throws it before
-// reaching classifyError, since a schema mismatch invalidates earlier
-// pages too.
-export type PartialFailureKind = "network" | "http" | "other";
-
-export interface PartialFailure {
-  message: string;
-  kind: PartialFailureKind;
-  pagesSucceeded: number;
-}
-
-export interface PaginatedListResult<T> {
-  items: T[];
-  truncated: boolean;
-  // When set, fetching mid-stream failed AFTER at least one page succeeded.
-  // The first-page failure path still throws so the caller's catch sees it.
-  partialFailure?: PartialFailure;
-}
-
-type ListExtractor<TResponse, TItem> = (resp: TResponse) => TItem[];
-
-function classifyError(error: unknown): PartialFailureKind {
-  if (typeof error === "object" && error !== null) {
-    const e = error as { response?: unknown; code?: string };
-    if (e.response !== undefined) return "http";
-    if (typeof e.code === "string") return "network";
-  }
-  return "other";
-}
-
-// I-5: use the named HetznerMeta in the constraint instead of an inline anonymous shape
-// so future changes to the meta envelope propagate automatically.
-// C-1 (round 2): schema is validated inside makeStorageBoxApiRequest.
-// C-1 (round 3): a ZodError mid-stream means the API returned a structurally
-// different shape on a later page — pages 1..N-1 are no longer trustworthy.
-// Always propagate ZodError, never return partial.
-// Exported for unit testing.
-export async function paginatedFetch<TResponse extends { meta?: HetznerMeta }, TItem>(
-  endpoint: string,
-  schema: z.ZodType<TResponse>,
-  extractItems: ListExtractor<TResponse, TItem>,
-  perPage: number = DEFAULT_PER_PAGE
-): Promise<PaginatedListResult<TItem>> {
-  const accumulated: TItem[] = [];
-  let nextPage: number | null = 1;
-  let pagesFetched = 0;
-  let truncated = false;
-
-  while (nextPage !== null) {
-    if (pagesFetched >= PAGINATION_HARD_CAP_PAGES) {
-      truncated = true;
-      break;
-    }
-    try {
-      const pageData: TResponse = await makeStorageBoxApiRequest<TResponse>(endpoint, schema, "GET", undefined, {
-        page: nextPage,
-        per_page: perPage
-      });
-      accumulated.push(...extractItems(pageData));
-      pagesFetched += 1;
-      nextPage = pageData.meta?.pagination?.next_page ?? null;
-    } catch (error) {
-      // ZodError = API contract violation. Pages already fetched were
-      // validated against a now-questionable schema — bail entirely.
-      if (error instanceof z.ZodError) {
-        throw error;
-      }
-      // First-page failure → propagate so the caller returns isError: true.
-      if (pagesFetched === 0) {
-        throw error;
-      }
-      // Mid-stream non-ZodError → return partial with structured info.
-      return {
-        items: accumulated,
-        truncated: false,
-        partialFailure: {
-          message: handleApiError(error),
-          kind: classifyError(error),
-          pagesSucceeded: pagesFetched
-        }
-      };
-    }
-  }
-
-  return { items: accumulated, truncated };
-}
+// Exported for unit testing. Bound to makeStorageBoxApiRequest via the shared factory.
+export const paginatedFetch = createPaginatedFetch(makeStorageBoxApiRequest);
 
 const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
 
@@ -238,6 +156,8 @@ Returns Storage Boxes with their:
       inputSchema: z.object({
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 50."),
+        label_selector: z.string().optional().describe("Filter by label selector (e.g. 'env=prod')"),
+        name: z.string().optional().describe("Filter by exact name"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -253,13 +173,17 @@ Returns Storage Boxes with their:
         let truncated = false;
         let partialFailure: PartialFailure | undefined;
 
+        const filterParams: Record<string, unknown> = {};
+        if (params.label_selector) filterParams.label_selector = params.label_selector;
+        if (params.name) filterParams.name = params.name;
+
         if (params.page !== undefined) {
           const data = await makeStorageBoxApiRequest(
             "/storage_boxes",
             ListStorageBoxesResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE, ...filterParams }
           );
           boxes = data.storage_boxes;
         } else {
@@ -267,7 +191,8 @@ Returns Storage Boxes with their:
             "/storage_boxes",
             ListStorageBoxesResponseSchema,
             (r) => r.storage_boxes,
-            params.per_page ?? DEFAULT_PER_PAGE
+            params.per_page ?? DEFAULT_PER_PAGE,
+            filterParams
           );
           boxes = result.items;
           truncated = result.truncated;
@@ -369,6 +294,7 @@ Returns subaccounts with their:
         id: z.number().int().positive().describe("The Storage Box ID"),
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 50."),
+        username: z.string().optional().describe("Filter by exact subaccount username"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -385,13 +311,16 @@ Returns subaccounts with their:
         let truncated = false;
         let partialFailure: PartialFailure | undefined;
 
+        const filterParams: Record<string, unknown> = {};
+        if (params.username) filterParams.username = params.username;
+
         if (params.page !== undefined) {
           const data = await makeStorageBoxApiRequest(
             endpoint,
             ListStorageBoxSubaccountsResponseSchema,
             "GET",
             undefined,
-            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE }
+            { page: params.page, per_page: params.per_page ?? DEFAULT_PER_PAGE, ...filterParams }
           );
           subaccounts = data.subaccounts;
         } else {
@@ -399,7 +328,8 @@ Returns subaccounts with their:
             endpoint,
             ListStorageBoxSubaccountsResponseSchema,
             (r) => r.subaccounts,
-            params.per_page ?? DEFAULT_PER_PAGE
+            params.per_page ?? DEFAULT_PER_PAGE,
+            filterParams
           );
           subaccounts = result.items;
           truncated = result.truncated;
