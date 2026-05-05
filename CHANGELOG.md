@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.1](https://github.com/jurislm/hetzner-mcp/compare/v1.1.0...v1.1.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* restore [@jurislm](https://github.com/jurislm) scope in package.json name ([#11](https://github.com/jurislm/hetzner-mcp/issues/11)) ([24a1516](https://github.com/jurislm/hetzner-mcp/commit/24a1516b533717f1269ff76942f25923d4ed242f))
+* update HetznerStorageBoxSchema to match unified API structure (closes [#13](https://github.com/jurislm/hetzner-mcp/issues/13)) ([#14](https://github.com/jurislm/hetzner-mcp/issues/14)) ([0e91466](https://github.com/jurislm/hetzner-mcp/commit/0e91466241d951864b3a3b77f31125dc972352ed))
+
 ## [1.1.0](https://github.com/jurislm/hetzner-mcp/compare/v1.0.0...v1.1.0) (2026-05-04)
 
 
