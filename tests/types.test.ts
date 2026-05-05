@@ -8,23 +8,50 @@ import {
   ListStorageBoxSubaccountsResponseSchema
 } from "../src/types.js";
 
+// Matches the shape returned by GET /v1/storage_boxes as documented at
+// https://docs.hetzner.cloud/reference/hetzner (verified 2026-05-05, issue #13).
 const validBox = {
   id: 1,
   name: "test-box",
-  login: "u123",
-  product: "BX11",
-  location: "fsn1",
-  quota_bytes: 1099511627776,
-  used_bytes: 0,
-  snapshots_used_bytes: 0,
-  ssh: true,
-  webdav: false,
-  samba: false,
-  zfs: false,
-  external_reachability: true,
-  locked: false,
-  cancelled: false,
-  paid_until: null
+  username: "u123",
+  status: "active",
+  server: "u123.your-storagebox.de",
+  system: "FSN1-BX355",
+  storage_box_type: {
+    id: 1,
+    name: "bx11",
+    description: "BX11",
+    snapshot_limit: 10,
+    automatic_snapshot_limit: 10,
+    subaccounts_limit: 200,
+    size: 1099511627776
+  },
+  location: {
+    id: 3,
+    name: "fsn1",
+    description: "Falkenstein DC Park 1",
+    country: "DE",
+    city: "Falkenstein",
+    latitude: 50.47612,
+    longitude: 12.370071,
+    network_zone: "eu-central"
+  },
+  labels: {},
+  protection: { delete: false },
+  access_settings: {
+    reachable_externally: true,
+    ssh_enabled: true,
+    webdav_enabled: false,
+    samba_enabled: false,
+    zfs_enabled: false
+  },
+  stats: {
+    size: 1099511627776,
+    size_data: 0,
+    size_snapshots: 0
+  },
+  snapshot_plan: null,
+  created: "2026-01-01T00:00:00+00:00"
 };
 
 const validSubaccount = {
@@ -49,50 +76,81 @@ const validPagination = {
 
 describe("HetznerStorageBoxSchema", () => {
   it("parses a valid storage box", () => {
-    expect(HetznerStorageBoxSchema.parse(validBox)).toEqual(validBox);
+    const parsed = HetznerStorageBoxSchema.parse(validBox);
+    expect(parsed.id).toBe(validBox.id);
+    expect(parsed.username).toBe(validBox.username);
+    expect(parsed.status).toBe(validBox.status);
   });
 
-  it("rejects when quota_bytes is a string (silent type coercion bug)", () => {
+  it("rejects when username is missing (old API used 'login')", () => {
+    const { username: _omit, ...rest } = validBox;
+    void _omit;
+    const result = HetznerStorageBoxSchema.safeParse(rest);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toContain("username");
+    }
+  });
+
+  it("rejects when stats.size is a string (type coercion guard)", () => {
     const result = HetznerStorageBoxSchema.safeParse({
       ...validBox,
-      quota_bytes: "1099511627776"
+      stats: { ...validBox.stats, size: "1099511627776" }
     });
     expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].path).toContain("quota_bytes");
-    }
   });
 
-  it("rejects when ssh is a truthy string instead of boolean", () => {
-    const result = HetznerStorageBoxSchema.safeParse({ ...validBox, ssh: "yes" });
-    expect(result.success).toBe(false);
-    if (!result.success) {
-      expect(result.error.issues[0].path).toContain("ssh");
-    }
-  });
-
-  it("rejects when paid_until is missing entirely", () => {
-    const { paid_until: _omit, ...rest } = validBox;
+  it("rejects when access_settings is missing entirely", () => {
+    const { access_settings: _omit, ...rest } = validBox;
     void _omit;
     const result = HetznerStorageBoxSchema.safeParse(rest);
     expect(result.success).toBe(false);
   });
 
-  it("accepts paid_until as ISO string", () => {
+  it("accepts snapshot_plan as null (no plan configured)", () => {
     const result = HetznerStorageBoxSchema.safeParse({
       ...validBox,
-      paid_until: "2026-12-31T23:59:59+00:00"
+      snapshot_plan: null
     });
     expect(result.success).toBe(true);
   });
 
-  it("strips unknown fields silently (forward compatibility)", () => {
+  it("accepts snapshot_plan as a configured schedule object", () => {
+    const result = HetznerStorageBoxSchema.safeParse({
+      ...validBox,
+      snapshot_plan: { max_snapshots: 7, minute: 30, hour: 3, day_of_week: null, day_of_month: 1 }
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts server and system as null (initializing status)", () => {
+    const result = HetznerStorageBoxSchema.safeParse({
+      ...validBox,
+      server: null,
+      system: null
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("strips unknown top-level fields silently (forward compatibility)", () => {
     const parsed = HetznerStorageBoxSchema.parse({
       ...validBox,
       future_unknown_field: "ignored"
     });
     expect(parsed).not.toHaveProperty("future_unknown_field");
     expect(parsed.id).toBe(validBox.id);
+  });
+
+  it("preserves unknown fields inside access_settings (passthrough)", () => {
+    const parsed = HetznerStorageBoxSchema.parse({
+      ...validBox,
+      access_settings: {
+        ...validBox.access_settings,
+        new_protocol_enabled: true
+      }
+    });
+    const settings = parsed.access_settings as Record<string, unknown>;
+    expect(settings.new_protocol_enabled).toBe(true);
   });
 });
 

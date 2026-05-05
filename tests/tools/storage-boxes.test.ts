@@ -38,20 +38,24 @@ beforeEach(() => {
 const baseBox: HetznerStorageBox = {
   id: 1,
   name: "test-box",
-  login: "u123",
-  product: "BX11",
-  location: "fsn1",
-  quota_bytes: 1024 ** 4,
-  used_bytes: 0,
-  snapshots_used_bytes: 0,
-  ssh: true,
-  webdav: false,
-  samba: false,
-  zfs: false,
-  external_reachability: true,
-  locked: false,
-  cancelled: false,
-  paid_until: null
+  username: "u123",
+  status: "active",
+  server: "u123.your-storagebox.de",
+  system: "FSN1-BX355",
+  storage_box_type: { id: 1, name: "bx11", description: "BX11" },
+  location: { id: 3, name: "fsn1", description: "Falkenstein DC Park 1", country: "DE", city: "Falkenstein" },
+  labels: {},
+  protection: { delete: false },
+  access_settings: {
+    reachable_externally: true,
+    ssh_enabled: true,
+    webdav_enabled: false,
+    samba_enabled: false,
+    zfs_enabled: false
+  },
+  stats: { size: 1024 ** 4, size_data: 0, size_snapshots: 0 },
+  snapshot_plan: null,
+  created: "2026-01-01T00:00:00+00:00"
 };
 
 const baseSubaccount: HetznerStorageBoxSubaccount = {
@@ -87,39 +91,78 @@ describe("formatBytes", () => {
 });
 
 describe("formatStorageBox", () => {
-  it("formats paid_until as ISO date (YYYY-MM-DD), independent of locale", () => {
+  it("includes username, status, type, location, and server", () => {
+    const out = formatStorageBox(baseBox);
+    expect(out).toContain("- **Username**: u123");
+    expect(out).toContain("- **Status**: active");
+    expect(out).toContain("- **Type**: bx11");
+    expect(out).toContain("- **Location**: fsn1");
+    expect(out).toContain("- **Server**: u123.your-storagebox.de");
+  });
+
+  it("renders em-dash when server is null (initializing)", () => {
+    const out = formatStorageBox({ ...baseBox, server: null, system: null });
+    expect(out).toContain("- **Server**: —");
+  });
+
+  it("shows storage usage from stats.size_data and stats.size", () => {
     const out = formatStorageBox({
       ...baseBox,
-      paid_until: "2026-12-31T23:59:59+00:00"
+      stats: { size: 1024 ** 4, size_data: 512 * 1024 ** 3, size_snapshots: 0 }
     });
-    expect(out).toContain("- **Paid until**: 2026-12-31");
+    expect(out).toContain("512.0 GiB used / 1024.0 GiB total");
   });
 
-  it("omits the Paid until line when paid_until is null", () => {
-    const out = formatStorageBox({ ...baseBox, paid_until: null });
-    expect(out).not.toContain("Paid until");
-  });
-
-  it("lists only enabled protocols", () => {
+  it("shows snapshot usage from stats.size_snapshots", () => {
     const out = formatStorageBox({
       ...baseBox,
-      ssh: true,
-      webdav: true,
-      samba: false,
-      zfs: false
+      stats: { size: 1024 ** 4, size_data: 0, size_snapshots: 5 * 1024 ** 3 }
+    });
+    expect(out).toContain("- **Snapshots**: 5.0 GiB");
+  });
+
+  it("lists only enabled protocols from access_settings", () => {
+    const out = formatStorageBox({
+      ...baseBox,
+      access_settings: {
+        ...baseBox.access_settings,
+        ssh_enabled: true,
+        webdav_enabled: true,
+        samba_enabled: false,
+        zfs_enabled: false
+      }
     });
     expect(out).toContain("- **Protocols**: ssh, webdav");
   });
 
-  it("renders 'none' when no protocols enabled", () => {
+  it("renders 'none' when no protocols are enabled", () => {
     const out = formatStorageBox({
       ...baseBox,
-      ssh: false,
-      webdav: false,
-      samba: false,
-      zfs: false
+      access_settings: {
+        ...baseBox.access_settings,
+        ssh_enabled: false,
+        webdav_enabled: false,
+        samba_enabled: false,
+        zfs_enabled: false
+      }
     });
     expect(out).toContain("- **Protocols**: none");
+  });
+
+  it("shows external reachability from access_settings.reachable_externally", () => {
+    const out = formatStorageBox({
+      ...baseBox,
+      access_settings: { ...baseBox.access_settings, reachable_externally: false }
+    });
+    expect(out).toContain("- **External reachability**: no");
+  });
+
+  it("shows delete protection status from protection.delete", () => {
+    const out = formatStorageBox({
+      ...baseBox,
+      protection: { delete: true }
+    });
+    expect(out).toContain("- **Delete protected**: yes");
   });
 });
 
