@@ -112,7 +112,28 @@ describe("formatStorageBox", () => {
       ...baseBox,
       stats: { size: 2 * 1024 ** 4, size_data: 512 * 1024 ** 3, size_snapshots: 0 }
     });
-    expect(out).toContain("512.0 GiB used / 1024.0 GiB total");
+    expect(out).toContain("512.0 GiB used / 1024.0 GiB total (~50% used)");
+  });
+
+  it("shows rounded percentage usage in storage line", () => {
+    // 509185359872 bytes used out of 1099511627776 bytes total ≈ 46%
+    const out = formatStorageBox({
+      ...baseBox,
+      stats: { size: 509185359872, size_data: 509185359872, size_snapshots: 0 },
+      storage_box_type: { ...baseBox.storage_box_type, size: 1099511627776 }
+    });
+    expect(out).toContain("(~46% used)");
+  });
+
+  it("shows 0% when storage_box_type.size is zero to avoid division by zero", () => {
+    const out = formatStorageBox({
+      ...baseBox,
+      stats: { size: 0, size_data: 0, size_snapshots: 0 },
+      storage_box_type: { ...baseBox.storage_box_type, size: 0 }
+    });
+    expect(out).toContain("(~0% used)");
+    expect(out).not.toContain("Infinity");
+    expect(out).not.toContain("NaN");
   });
 
   it("shows snapshot usage from stats.size_snapshots", () => {

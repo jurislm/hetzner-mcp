@@ -1,6 +1,6 @@
 # CLAUDE.md — JurisLM Hetzner MCP Server
 
-Hetzner Cloud 管理 MCP Server，提供 20 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes、Snapshots）。
+Hetzner Cloud 管理 MCP Server，提供 34 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes 完整 CRUD、Snapshots、Actions）。
 
 ## 常用命令
 
@@ -37,10 +37,10 @@ src/
     ├── servers.ts     # 7 個伺服器管理工具
     ├── ssh-keys.ts    # 4 個 SSH 金鑰工具
     ├── reference.ts   # 3 個參考資料工具
-    └── storage-boxes.ts # 6 個 Storage Boxes 工具
+    └── storage-boxes.ts # 20 個 Storage Boxes 工具
 ```
 
-## 工具清單（20 個）
+## 工具清單（34 個）
 
 ### Servers（7 tools）
 - `hetzner_list_servers` — 列出專案所有伺服器
@@ -62,13 +62,27 @@ src/
 - `hetzner_list_images` — 列出可用 OS 映像檔
 - `hetzner_list_locations` — 列出可用資料中心位置
 
-### Storage Boxes（6 tools）
+### Storage Boxes（20 tools）
 - `hetzner_list_storage_boxes` — 列出所有 Storage Box（支援分頁）
 - `hetzner_get_storage_box` — 取得單一 Storage Box 詳情（容量、protocols、狀態）
+- `hetzner_create_storage_box` — 建立新 Storage Box（**會產生費用**）
+- `hetzner_update_storage_box` — 更新 Storage Box 名稱 / labels
+- `hetzner_delete_storage_box` — 永久刪除 Storage Box（**destructive**）
+- `hetzner_list_storage_box_folders` — 列出 Storage Box 內的資料夾
 - `hetzner_list_storage_box_subaccounts` — 列出 Storage Box 的所有子帳號
+- `hetzner_create_storage_box_subaccount` — 建立子帳號
+- `hetzner_update_storage_box_subaccount` — 更新子帳號設定
+- `hetzner_delete_storage_box_subaccount` — 刪除子帳號（**destructive**）
 - `hetzner_list_storage_box_snapshots` — 列出 Storage Box 的所有 snapshots（支援分頁）
-- `hetzner_create_storage_box_snapshot` — 觸發即時 snapshot（手動備份點，可選 description / labels）
-- `hetzner_rollback_storage_box_snapshot` — 回滾至指定 snapshot（**destructive**，覆寫資料）
+- `hetzner_create_storage_box_snapshot` — 觸發即時 snapshot（手動備份點）
+- `hetzner_delete_storage_box_snapshot` — 刪除指定 snapshot（**destructive**）
+- `hetzner_rollback_storage_box_snapshot` — 回滾至指定 snapshot（**destructive**）
+- `hetzner_change_storage_box_protection` — 設定刪除保護
+- `hetzner_change_storage_box_type` — 升降級 Storage Box 規格（**destructive**）
+- `hetzner_reset_storage_box_password` — 重設 Storage Box 密碼
+- `hetzner_update_storage_box_access_settings` — 更新 SSH / Samba / WebDAV / ZFS / 外部連線設定
+- `hetzner_enable_storage_box_snapshot_plan` — 啟用自動 snapshot 計畫
+- `hetzner_disable_storage_box_snapshot_plan` — 停用自動 snapshot 計畫
 
 ## 環境變數
 
