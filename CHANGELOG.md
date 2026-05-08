@@ -1,26 +1,5 @@
 # Changelog
 
-## [1.2.0](https://github.com/jurislm/hetzner-mcp/compare/v1.1.1...v1.2.0) (2026-05-05)
-
-
-### Features
-
-* add pagination for servers/ssh-keys and filters for storage boxes ([b6854d8](https://github.com/jurislm/hetzner-mcp/commit/b6854d8e7a95df3a4c72c3a64316e0961e0a784b))
-* add pagination for servers/ssh-keys and filters for storage boxes ([31bc9de](https://github.com/jurislm/hetzner-mcp/commit/31bc9de650468a37d7223e73629cfb29dbfa4588))
-* implement 14 missing Storage Box API endpoints ([76eee1b](https://github.com/jurislm/hetzner-mcp/commit/76eee1b12d4b39813b26e80a565b66086c57ca8e))
-* implement 14 missing Storage Box API endpoints ([#12](https://github.com/jurislm/hetzner-mcp/issues/12)) ([6a56f9a](https://github.com/jurislm/hetzner-mcp/commit/6a56f9a0504ce8d60edf77d52d001af73af4761e))
-
-
-### Bug Fixes
-
-* make storage_box_type.size required per official API spec ([3dd51e4](https://github.com/jurislm/hetzner-mcp/commit/3dd51e48dcf99851fdfccab7b729bb82a0c3e3a6))
-* use storage_box_type.size for total capacity in formatStorageBox (closes [#16](https://github.com/jurislm/hetzner-mcp/issues/16)) ([7568cac](https://github.com/jurislm/hetzner-mcp/commit/7568cac9b5bccf38e374a0670de3d671dc8e3a1c))
-
-
-### Documentation
-
-* add Hetzner unified API reference with implementation coverage ([081224c](https://github.com/jurislm/hetzner-mcp/commit/081224c6b88edfe23363f0bbaa6df0b9930a49cf))
-
 ## [1.1.1](https://github.com/jurislm/hetzner-mcp/compare/v1.1.0...v1.1.1) (2026-05-05)
 
 
