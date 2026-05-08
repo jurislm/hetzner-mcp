@@ -125,6 +125,17 @@ describe("formatStorageBox", () => {
     expect(out).toContain("(~46% used)");
   });
 
+  it("shows 0% when storage_box_type.size is zero to avoid division by zero", () => {
+    const out = formatStorageBox({
+      ...baseBox,
+      stats: { size: 0, size_data: 0, size_snapshots: 0 },
+      storage_box_type: { ...baseBox.storage_box_type, size: 0 }
+    });
+    expect(out).toContain("(~0% used)");
+    expect(out).not.toContain("Infinity");
+    expect(out).not.toContain("NaN");
+  });
+
   it("shows snapshot usage from stats.size_snapshots", () => {
     const out = formatStorageBox({
       ...baseBox,
