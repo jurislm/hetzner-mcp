@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.2.1](https://github.com/jurislm/hetzner-mcp/compare/v1.2.0...v1.2.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* add percentage usage to storage box markdown output ([55135ad](https://github.com/jurislm/hetzner-mcp/commit/55135adc55b34c6bbd8fb9854ce612361aa271d1))
+* add percentage usage to storage box markdown output ([#22](https://github.com/jurislm/hetzner-mcp/issues/22)) ([2935774](https://github.com/jurislm/hetzner-mcp/commit/2935774ec63147a0096bce8d63bb13b09af05174))
+* guard usagePercent against division by zero ([c5bcff3](https://github.com/jurislm/hetzner-mcp/commit/c5bcff36cdfff40542a603828acc68d6b38c3042))
+
 ## [1.2.0](https://github.com/jurislm/hetzner-mcp/compare/v1.1.1...v1.2.0) (2026-05-05)
 
 
