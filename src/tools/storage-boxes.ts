@@ -64,6 +64,7 @@ export function formatStorageBox(box: HetznerStorageBox): string {
     .filter(([key]) => settings[key] === true)
     .map(([, label]) => label)
     .join(", ") || "none";
+  const usagePercent = Math.round((box.stats.size_data / box.storage_box_type.size) * 100);
   return [
     `## ${box.name} (ID: ${box.id})`,
     `- **Username**: ${box.username}`,
@@ -71,7 +72,7 @@ export function formatStorageBox(box: HetznerStorageBox): string {
     `- **Type**: ${box.storage_box_type.name}`,
     `- **Location**: ${box.location.name}`,
     `- **Server**: ${box.server ?? "—"}`,
-    `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(box.storage_box_type.size)} total`,
+    `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(box.storage_box_type.size)} total (~${usagePercent}% used)`,
     `- **Snapshots**: ${formatBytes(box.stats.size_snapshots)}`,
     `- **Protocols**: ${protocols}`,
     `- **External reachability**: ${settings.reachable_externally ? "yes" : "no"}`,
