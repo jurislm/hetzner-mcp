@@ -411,18 +411,11 @@ export type ServerMetricsResponse = z.infer<typeof ServerMetricsResponseSchema>;
 export const HetznerVolumeSchema = z.object({
   id: z.number(),
   name: z.string(),
-  status: z.enum(["available", "creating"]),
+  // z.string() instead of z.enum to tolerate future Hetzner status values
+  // without throwing ZodError at the API boundary (e.g. "deleting", "error").
+  status: z.string(),
   size: z.number(),
-  location: z.object({
-    id: z.number(),
-    name: z.string(),
-    description: z.string(),
-    country: z.string(),
-    city: z.string(),
-    latitude: z.number(),
-    longitude: z.number(),
-    network_zone: z.string()
-  }),
+  location: HetznerLocationSchema,
   server: z.number().nullable(),
   linux_device: z.string().nullable(),
   protection: z.object({

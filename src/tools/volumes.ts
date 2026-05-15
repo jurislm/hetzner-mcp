@@ -64,7 +64,7 @@ Returns volumes with their:
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 25."),
         label_selector: z.string().optional().describe("Filter by label (e.g., 'env=production')"),
-        status: z.enum(["available", "creating"]).optional().describe("Filter by volume status"),
+        status: z.string().optional().describe("Filter by volume status (known values: 'available', 'creating')"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -256,7 +256,7 @@ After detaching, the volume status returns to \`available\` and can be attached 
       }).strict(),
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: false,
         openWorldHint: true
       }

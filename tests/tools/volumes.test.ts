@@ -44,7 +44,13 @@ const baseVolume: HetznerVolume = {
 };
 
 function makeVolume(id: number, server: number | null = null): HetznerVolume {
-  return { ...baseVolume, id, name: `vol-${id}`, server };
+  return {
+    ...baseVolume,
+    id,
+    name: `vol-${id}`,
+    server,
+    linux_device: `/dev/disk/by-id/scsi-0HC_Volume_${id}`
+  };
 }
 
 function pageResponse(volumes: HetznerVolume[], nextPage: number | null): ListVolumesResponse {
@@ -121,6 +127,18 @@ describe("hetzner_list_volumes — auto-pagination", () => {
 
     expect(mockedRequest).toHaveBeenCalledTimes(1);
     expect(result.content[0].text).toContain("Found 1 volume(s)");
+  });
+
+  it("forwards status and label_selector filters to API request", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_volumes")!.handler;
+    mockedRequest.mockResolvedValueOnce(pageResponse([makeVolume(1)], null));
+
+    await handler({ status: "available", label_selector: "env=prod", response_format: "markdown" });
+
+    expect(mockedRequest).toHaveBeenCalledTimes(1);
+    const callParams = mockedRequest.mock.calls[0][4] as Record<string, unknown>;
+    expect(callParams).toMatchObject({ status: "available", label_selector: "env=prod" });
   });
 
   it("returns JSON when response_format is json", async () => {
