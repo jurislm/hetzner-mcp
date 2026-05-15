@@ -2,9 +2,7 @@ import { execFile } from "child_process";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
-import { ResponseFormat, GetServerResponseSchema } from "../types.js";
-
-const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
+import { ResponseFormat, ResponseFormatSchema, GetServerResponseSchema } from "../types.js";
 
 export interface RamStats {
   total: number;
@@ -38,12 +36,20 @@ export function parseFreeOutput(output: string): FreeOutput {
     throw new Error("Unexpected output from `free -m`: Mem: line not found");
   }
 
+  const parseCell = (cells: string[], index: number, label: string): number => {
+    const value = Number.parseInt(cells[index] ?? "", 10);
+    if (!Number.isFinite(value)) {
+      throw new Error(`Unexpected output from \`free -m\`: invalid ${label}`);
+    }
+    return value;
+  };
+
   const mem = memLine.trim().split(/\s+/);
-  const total = parseInt(mem[1], 10);
-  const used = parseInt(mem[2], 10);
-  const free = parseInt(mem[3], 10);
+  const total = parseCell(mem, 1, "Mem total");
+  const used = parseCell(mem, 2, "Mem used");
+  const free = parseCell(mem, 3, "Mem free");
   // Column 6 = "available" (after buff/cache adjustment); fall back to free
-  const available = mem[6] !== undefined ? parseInt(mem[6], 10) : free;
+  const available = mem[6] !== undefined ? parseCell(mem, 6, "Mem available") : free;
 
   const ram: RamStats = {
     total,
@@ -57,9 +63,9 @@ export function parseFreeOutput(output: string): FreeOutput {
   if (swapLine) {
     const sw = swapLine.trim().split(/\s+/);
     swap = {
-      total: parseInt(sw[1], 10),
-      used: parseInt(sw[2], 10),
-      free: parseInt(sw[3], 10)
+      total: parseCell(sw, 1, "Swap total"),
+      used: parseCell(sw, 2, "Swap used"),
+      free: parseCell(sw, 3, "Swap free")
     };
   }
 
@@ -136,6 +142,11 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
       }
     },
     async (params) => {
+      // Zod defaults apply only via MCP framework validation; guard here for
+      // direct handler calls (e.g., unit tests).
+      const sshUser = params.ssh_user ?? "root";
+      const sshPort = params.ssh_port ?? 22;
+
       try {
         // Step 1: resolve public IPv4 from server ID
         const serverData = await makeApiRequest(
@@ -149,11 +160,6 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
             isError: true
           };
         }
-
-        // Zod defaults apply only via MCP framework validation; guard here for
-        // direct handler calls (e.g., unit tests).
-        const sshUser = params.ssh_user ?? "root";
-        const sshPort = params.ssh_port ?? 22;
 
         // Step 2: SSH and run free -m
         const stdout = await sshRunner(ipv4, sshPort, sshUser, "free -m");
@@ -204,7 +210,7 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
           const msg = error.message;
           if (msg.includes("Permission denied")) {
             return {
-              content: [{ type: "text", text: `Error: SSH permission denied for '${params.ssh_user}'. Check your SSH key is loaded (ssh-add).` }],
+              content: [{ type: "text", text: `Error: SSH permission denied for '${sshUser}'. Check your SSH key is loaded (ssh-add).` }],
               isError: true
             };
           }

@@ -3,11 +3,10 @@ import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import {
   ResponseFormat,
+  ResponseFormatSchema,
   ServerMetricsResponseSchema,
   GetServerResponseSchema
 } from "../types.js";
-
-const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 
 type TimeSeriesValues = [number, string][];
 
@@ -71,6 +70,16 @@ Metrics are retained for 30 days; step is auto-adjusted to a max of 500 samples.
         const start = params.start ?? new Date(now.getTime() - 5 * 60 * 1000).toISOString();
         const end = params.end ?? now.toISOString();
         const step = params.step ?? 60;
+
+        const startMs = Date.parse(start);
+        const endMs = Date.parse(end);
+        if (Number.isNaN(startMs) || Number.isNaN(endMs)) {
+          throw new Error("start and end must be valid ISO 8601 datetimes");
+        }
+        if (startMs >= endMs) {
+          throw new Error("start must be earlier than end");
+        }
+
         const types = params.type;
 
         // Fetch metrics and server info (for CPU core count) in parallel.

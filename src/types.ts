@@ -7,6 +7,7 @@ export enum ResponseFormat {
   MARKDOWN = "markdown",
   JSON = "json"
 }
+export const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 
 // Utility: keys of T whose value type is exactly `boolean`. Used to constrain
 // arrays like STORAGE_BOX_PROTOCOLS so a typo (e.g. "name") fails typecheck.

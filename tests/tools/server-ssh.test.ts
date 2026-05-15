@@ -70,7 +70,10 @@ function captureHandler(): ToolHandler {
   };
   // Inject mockSsh so the handler never opens a real SSH connection.
   registerServerSshTools(fakeServer as unknown as McpServer, mockSsh);
-  return captured!;
+  if (!captured) {
+    throw new Error("registerServerSshTools did not call registerTool — handler not captured");
+  }
+  return captured;
 }
 
 // ── parseFreeOutput — pure unit tests ─────────────────────────────────────────
@@ -267,5 +270,6 @@ describe("hetzner_get_server_ram — error handling", () => {
     const result = await captureHandler()({ id: 1, response_format: "markdown" });
 
     expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain("network error");
   });
 });
