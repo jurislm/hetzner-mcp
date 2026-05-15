@@ -392,6 +392,49 @@ export const UpdateSubaccountResponseSchema = z.object({
 });
 export type UpdateSubaccountResponse = z.infer<typeof UpdateSubaccountResponseSchema>;
 
+// Cloud Volume
+export const HetznerVolumeSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  status: z.enum(["available", "creating"]),
+  size: z.number(),
+  location: z.object({
+    id: z.number(),
+    name: z.string(),
+    description: z.string(),
+    country: z.string(),
+    city: z.string(),
+    latitude: z.number(),
+    longitude: z.number(),
+    network_zone: z.string()
+  }),
+  server: z.number().nullable(),
+  linux_device: z.string().nullable(),
+  protection: z.object({
+    delete: z.boolean()
+  }),
+  labels: z.record(z.string(), z.string()),
+  format: z.string().nullable(),
+  created: z.string()
+});
+export type HetznerVolume = z.infer<typeof HetznerVolumeSchema>;
+
+export const ListVolumesResponseSchema = z.object({
+  volumes: z.array(HetznerVolumeSchema),
+  meta: CloudMetaSchema
+});
+export type ListVolumesResponse = z.infer<typeof ListVolumesResponseSchema>;
+
+export const GetVolumeResponseSchema = z.object({
+  volume: HetznerVolumeSchema
+});
+export type GetVolumeResponse = z.infer<typeof GetVolumeResponseSchema>;
+
+export const VolumeActionResponseSchema = z.object({
+  action: HetznerActionSchema
+});
+export type VolumeActionResponse = z.infer<typeof VolumeActionResponseSchema>;
+
 // API Error
 export interface HetznerAPIError {
   error: {
