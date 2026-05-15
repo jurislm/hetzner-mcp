@@ -9,14 +9,13 @@ import {
 } from "../api.js";
 import {
   ResponseFormat,
+  ResponseFormatSchema,
   ListVolumesResponse,
   ListVolumesResponseSchema,
   GetVolumeResponseSchema,
   VolumeActionResponseSchema,
   HetznerVolume
 } from "../types.js";
-
-const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const CLOUD_DEFAULT_PER_PAGE = 25;
 const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
 
