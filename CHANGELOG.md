@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.3.0](https://github.com/jurislm/hetzner-mcp/compare/v1.2.1...v1.3.0) (2026-05-15)
+
+
+### Features
+
+* add Cloud Volume tools (list, get, attach, detach) ([#25](https://github.com/jurislm/hetzner-mcp/issues/25)) ([6262c35](https://github.com/jurislm/hetzner-mcp/commit/6262c3599a6ae03173861d1481d4ea9320bc77ec))
+* add Cloud Volume tools and Server Metrics tool ([4b8088f](https://github.com/jurislm/hetzner-mcp/commit/4b8088fdad8c6999f26945b9fcf87edd063810f4))
+* add Cloud Volume tools and Server Metrics tool ([#28](https://github.com/jurislm/hetzner-mcp/issues/28)) ([4b8088f](https://github.com/jurislm/hetzner-mcp/commit/4b8088fdad8c6999f26945b9fcf87edd063810f4))
+* add hetzner_get_server_metrics tool ([#26](https://github.com/jurislm/hetzner-mcp/issues/26)) ([440c435](https://github.com/jurislm/hetzner-mcp/commit/440c435434305b1242e1300090c8dece7d16cdf7))
+* add hetzner_get_server_ram tool via SSH ([#27](https://github.com/jurislm/hetzner-mcp/issues/27)) ([6dfcd25](https://github.com/jurislm/hetzner-mcp/commit/6dfcd25a9a7ca0cf750c2f5a6c036e9238a3c67f))
+
+
+### Bug Fixes
+
+* address CodeRabbit/Copilot review feedback on metrics and server-ssh ([e75fd56](https://github.com/jurislm/hetzner-mcp/commit/e75fd5621cd3174f941f875ab8b1d5c7fbdab124))
+* address PR [#28](https://github.com/jurislm/hetzner-mcp/issues/28) review feedback ([8b5e261](https://github.com/jurislm/hetzner-mcp/commit/8b5e261aefa0e211a41ca681775ec2f7af6513a5))
+* guard ssh_user against option injection (HIGH security) ([8986af0](https://github.com/jurislm/hetzner-mcp/commit/8986af0f36c5b74c1afe5b8dd4324129e4379912))
+* import shared ResponseFormatSchema in volumes.ts ([8e1f6c8](https://github.com/jurislm/hetzner-mcp/commit/8e1f6c8bd8f2c23855f3f224248635d330ad56c4))
+
 ## [1.2.1](https://github.com/jurislm/hetzner-mcp/compare/v1.2.0...v1.2.1) (2026-05-08)
 
 
