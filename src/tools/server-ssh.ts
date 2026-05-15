@@ -128,7 +128,9 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
       inputSchema: z.object({
         id: z.number().int().positive()
           .describe("Server ID — used to resolve the public IPv4 address"),
-        ssh_user: z.string().default("root")
+        ssh_user: z.string()
+          .regex(/^[a-zA-Z0-9._-]+$/, "ssh_user must contain only alphanumeric characters, dots, hyphens, or underscores")
+          .default("root")
           .describe("SSH username (default: 'root')"),
         ssh_port: z.number().int().positive().max(65535).default(22)
           .describe("SSH port (default: 22)"),
