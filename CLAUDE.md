@@ -1,6 +1,6 @@
 # CLAUDE.md — JurisLM Hetzner MCP Server
 
-Hetzner Cloud 管理 MCP Server，提供 39 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes 完整 CRUD、Snapshots、Actions、Cloud Volumes、Server Metrics）。
+Hetzner Cloud 管理 MCP Server，提供 40 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes 完整 CRUD、Snapshots、Actions、Cloud Volumes、Server Metrics、RAM via SSH）。
 
 ## 常用命令
 
@@ -39,10 +39,11 @@ src/
     ├── reference.ts   # 3 個參考資料工具
     ├── storage-boxes.ts # 20 個 Storage Boxes 工具
     ├── volumes.ts       # 4 個 Cloud Volume 工具
-    └── metrics.ts       # 1 個 Server Metrics 工具
+    ├── metrics.ts       # 1 個 Server Metrics 工具
+    └── server-ssh.ts    # 1 個 SSH RAM 工具
 ```
 
-## 工具清單（39 個）
+## 工具清單（40 個）
 
 ### Servers（7 tools）
 - `hetzner_list_servers` — 列出專案所有伺服器
@@ -94,6 +95,9 @@ src/
 
 ### Server Metrics（1 tool）
 - `hetzner_get_server_metrics` — 取得 CPU / Disk I/O / Network 即時使用率（預設近 5 分鐘）
+
+### Server RAM via SSH（1 tool）
+- `hetzner_get_server_ram` — 透過 SSH 執行 `free -m` 取得 RAM / Swap 使用率（Hetzner Metrics API 不提供記憶體指標）
 
 ## 環境變數
 
