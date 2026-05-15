@@ -1,6 +1,6 @@
 # CLAUDE.md — JurisLM Hetzner MCP Server
 
-Hetzner Cloud 管理 MCP Server，提供 34 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes 完整 CRUD、Snapshots、Actions）。
+Hetzner Cloud 管理 MCP Server，提供 40 個工具用於伺服器管理（建立、電源控制、SSH 金鑰、Storage Boxes 完整 CRUD、Snapshots、Actions、Cloud Volumes、Server Metrics、RAM via SSH）。
 
 ## 常用命令
 
@@ -37,10 +37,13 @@ src/
     ├── servers.ts     # 7 個伺服器管理工具
     ├── ssh-keys.ts    # 4 個 SSH 金鑰工具
     ├── reference.ts   # 3 個參考資料工具
-    └── storage-boxes.ts # 20 個 Storage Boxes 工具
+    ├── storage-boxes.ts # 20 個 Storage Boxes 工具
+    ├── volumes.ts       # 4 個 Cloud Volume 工具
+    ├── metrics.ts       # 1 個 Server Metrics 工具
+    └── server-ssh.ts    # 1 個 SSH RAM 工具
 ```
 
-## 工具清單（34 個）
+## 工具清單（40 個）
 
 ### Servers（7 tools）
 - `hetzner_list_servers` — 列出專案所有伺服器
@@ -83,6 +86,18 @@ src/
 - `hetzner_update_storage_box_access_settings` — 更新 SSH / Samba / WebDAV / ZFS / 外部連線設定
 - `hetzner_enable_storage_box_snapshot_plan` — 啟用自動 snapshot 計畫
 - `hetzner_disable_storage_box_snapshot_plan` — 停用自動 snapshot 計畫
+
+### Cloud Volumes（4 tools）
+- `hetzner_list_volumes` — 列出所有 Cloud Volumes（含掛載路徑、attached server）
+- `hetzner_get_volume` — 取得單一 Volume 詳情（確認 linux_device 路徑）
+- `hetzner_attach_volume` — 將 Volume attach 到指定 server
+- `hetzner_detach_volume` — 將 Volume 從 server detach
+
+### Server Metrics（1 tool）
+- `hetzner_get_server_metrics` — 取得 CPU / Disk I/O / Network 即時使用率（預設近 5 分鐘）
+
+### Server RAM via SSH（1 tool）
+- `hetzner_get_server_ram` — 透過 SSH 執行 `free -m` 取得 RAM / Swap 使用率（Hetzner Metrics API 不提供記憶體指標）
 
 ## 環境變數
 

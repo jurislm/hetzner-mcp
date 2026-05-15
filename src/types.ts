@@ -7,6 +7,7 @@ export enum ResponseFormat {
   MARKDOWN = "markdown",
   JSON = "json"
 }
+export const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 
 // Utility: keys of T whose value type is exactly `boolean`. Used to constrain
 // arrays like STORAGE_BOX_PROTOCOLS so a typo (e.g. "name") fails typecheck.
@@ -391,6 +392,57 @@ export const UpdateSubaccountResponseSchema = z.object({
   subaccount: HetznerStorageBoxSubaccountSchema
 });
 export type UpdateSubaccountResponse = z.infer<typeof UpdateSubaccountResponseSchema>;
+
+// Server Metrics
+const MetricsTimeSeriesEntrySchema = z.object({
+  values: z.array(z.tuple([z.number(), z.string()]))
+});
+
+export const ServerMetricsResponseSchema = z.object({
+  metrics: z.object({
+    start: z.string(),
+    end: z.string(),
+    step: z.number(),
+    time_series: z.record(z.string(), MetricsTimeSeriesEntrySchema)
+  })
+});
+export type ServerMetricsResponse = z.infer<typeof ServerMetricsResponseSchema>;
+
+// Cloud Volume
+export const HetznerVolumeSchema = z.object({
+  id: z.number(),
+  name: z.string(),
+  // z.string() instead of z.enum to tolerate future Hetzner status values
+  // without throwing ZodError at the API boundary (e.g. "deleting", "error").
+  status: z.string(),
+  size: z.number(),
+  location: HetznerLocationSchema,
+  server: z.number().nullable(),
+  linux_device: z.string().nullable(),
+  protection: z.object({
+    delete: z.boolean()
+  }),
+  labels: z.record(z.string(), z.string()),
+  format: z.string().nullable(),
+  created: z.string()
+});
+export type HetznerVolume = z.infer<typeof HetznerVolumeSchema>;
+
+export const ListVolumesResponseSchema = z.object({
+  volumes: z.array(HetznerVolumeSchema),
+  meta: CloudMetaSchema
+});
+export type ListVolumesResponse = z.infer<typeof ListVolumesResponseSchema>;
+
+export const GetVolumeResponseSchema = z.object({
+  volume: HetznerVolumeSchema
+});
+export type GetVolumeResponse = z.infer<typeof GetVolumeResponseSchema>;
+
+export const VolumeActionResponseSchema = z.object({
+  action: HetznerActionSchema
+});
+export type VolumeActionResponse = z.infer<typeof VolumeActionResponseSchema>;
 
 // API Error
 export interface HetznerAPIError {
