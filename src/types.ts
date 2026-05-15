@@ -106,7 +106,6 @@ export const HetznerServerTypeSchema = z.object({
   architecture: z.string(),
   cpu_type: z.string()
 });
-export type HetznerServerType = z.infer<typeof HetznerServerTypeSchema>;
 
 export const HetznerImageSchema = z.object({
   id: z.number(),
@@ -130,7 +129,6 @@ export const HetznerLocationSchema = z.object({
   longitude: z.number(),
   network_zone: z.string()
 });
-export type HetznerLocation = z.infer<typeof HetznerLocationSchema>;
 
 export const HetznerSSHKeySchema = z.object({
   id: z.number(),
@@ -166,34 +164,28 @@ export type ListServersResponse = z.infer<typeof ListServersResponseSchema>;
 export const GetServerResponseSchema = z.object({
   server: HetznerServerSchema
 });
-export type GetServerResponse = z.infer<typeof GetServerResponseSchema>;
 
 export const CreateServerResponseSchema = z.object({
   server: HetznerServerSchema,
   action: HetznerActionSchema,
   root_password: z.string().nullable()
 });
-export type CreateServerResponse = z.infer<typeof CreateServerResponseSchema>;
 
 export const ServerActionResponseSchema = z.object({
   action: HetznerActionSchema
 });
-export type ServerActionResponse = z.infer<typeof ServerActionResponseSchema>;
 
 export const ListServerTypesResponseSchema = z.object({
   server_types: z.array(HetznerServerTypeSchema)
 });
-export type ListServerTypesResponse = z.infer<typeof ListServerTypesResponseSchema>;
 
 export const ListImagesResponseSchema = z.object({
   images: z.array(HetznerImageSchema)
 });
-export type ListImagesResponse = z.infer<typeof ListImagesResponseSchema>;
 
 export const ListLocationsResponseSchema = z.object({
   locations: z.array(HetznerLocationSchema)
 });
-export type ListLocationsResponse = z.infer<typeof ListLocationsResponseSchema>;
 
 export const ListSSHKeysResponseSchema = z.object({
   ssh_keys: z.array(HetznerSSHKeySchema),
@@ -204,12 +196,10 @@ export type ListSSHKeysResponse = z.infer<typeof ListSSHKeysResponseSchema>;
 export const GetSSHKeyResponseSchema = z.object({
   ssh_key: HetznerSSHKeySchema
 });
-export type GetSSHKeyResponse = z.infer<typeof GetSSHKeyResponseSchema>;
 
 export const CreateSSHKeyResponseSchema = z.object({
   ssh_key: HetznerSSHKeySchema
 });
-export type CreateSSHKeyResponse = z.infer<typeof CreateSSHKeyResponseSchema>;
 
 // Storage Box — Zod schemas at API boundary (C-1).
 // These schemas are validated at runtime via makeStorageBoxApiRequest, so
@@ -229,7 +219,6 @@ export const HetznerPaginationSchema = z.object({
   last_page: z.number().nullable().optional(),
   total_entries: z.number().nullable().optional()
 });
-export type HetznerPagination = z.infer<typeof HetznerPaginationSchema>;
 
 export const HetznerMetaSchema = z.object({
   pagination: HetznerPaginationSchema.optional()
@@ -313,7 +302,6 @@ export type ListStorageBoxesResponse = z.infer<typeof ListStorageBoxesResponseSc
 export const GetStorageBoxResponseSchema = z.object({
   storage_box: HetznerStorageBoxSchema
 });
-export type GetStorageBoxResponse = z.infer<typeof GetStorageBoxResponseSchema>;
 
 export const ListStorageBoxSubaccountsResponseSchema = z.object({
   subaccounts: z.array(HetznerStorageBoxSubaccountSchema),
@@ -348,12 +336,10 @@ export const CreateStorageBoxSnapshotResponseSchema = z.object({
   snapshot: HetznerStorageBoxSnapshotSchema,
   action: HetznerActionSchema
 });
-export type CreateStorageBoxSnapshotResponse = z.infer<typeof CreateStorageBoxSnapshotResponseSchema>;
 
 export const RollbackStorageBoxSnapshotResponseSchema = z.object({
   action: HetznerActionSchema
 });
-export type RollbackStorageBoxSnapshotResponse = z.infer<typeof RollbackStorageBoxSnapshotResponseSchema>;
 
 // Shared action response for DELETE and action endpoints.
 // RollbackStorageBoxSnapshotResponseSchema is kept as a separate alias for
@@ -361,37 +347,31 @@ export type RollbackStorageBoxSnapshotResponse = z.infer<typeof RollbackStorageB
 export const StorageBoxActionResponseSchema = z.object({
   action: HetznerActionSchema
 });
-export type StorageBoxActionResponse = z.infer<typeof StorageBoxActionResponseSchema>;
 
 // Create Storage Box — response includes both the new box and an action.
 export const CreateStorageBoxResponseSchema = z.object({
   storage_box: HetznerStorageBoxSchema,
   action: HetznerActionSchema
 });
-export type CreateStorageBoxResponse = z.infer<typeof CreateStorageBoxResponseSchema>;
 
 // Update Storage Box — returns just the updated box.
 export const UpdateStorageBoxResponseSchema = z.object({
   storage_box: HetznerStorageBoxSchema
 });
-export type UpdateStorageBoxResponse = z.infer<typeof UpdateStorageBoxResponseSchema>;
 
 // List folders — folders is a plain string array.
 export const ListFoldersResponseSchema = z.object({
   folders: z.array(z.string())
 });
-export type ListFoldersResponse = z.infer<typeof ListFoldersResponseSchema>;
 
 // Subaccount create / update — returns the subaccount object.
 export const CreateSubaccountResponseSchema = z.object({
   subaccount: HetznerStorageBoxSubaccountSchema
 });
-export type CreateSubaccountResponse = z.infer<typeof CreateSubaccountResponseSchema>;
 
 export const UpdateSubaccountResponseSchema = z.object({
   subaccount: HetznerStorageBoxSubaccountSchema
 });
-export type UpdateSubaccountResponse = z.infer<typeof UpdateSubaccountResponseSchema>;
 
 // Server Metrics
 const MetricsTimeSeriesEntrySchema = z.object({
@@ -406,7 +386,6 @@ export const ServerMetricsResponseSchema = z.object({
     time_series: z.record(z.string(), MetricsTimeSeriesEntrySchema)
   })
 });
-export type ServerMetricsResponse = z.infer<typeof ServerMetricsResponseSchema>;
 
 // Cloud Volume
 export const HetznerVolumeSchema = z.object({
@@ -437,17 +416,7 @@ export type ListVolumesResponse = z.infer<typeof ListVolumesResponseSchema>;
 export const GetVolumeResponseSchema = z.object({
   volume: HetznerVolumeSchema
 });
-export type GetVolumeResponse = z.infer<typeof GetVolumeResponseSchema>;
 
 export const VolumeActionResponseSchema = z.object({
   action: HetznerActionSchema
 });
-export type VolumeActionResponse = z.infer<typeof VolumeActionResponseSchema>;
-
-// API Error
-export interface HetznerAPIError {
-  error: {
-    code: string;
-    message: string;
-  };
-}
