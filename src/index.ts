@@ -14,6 +14,7 @@ import { registerSSHKeyTools } from "./tools/ssh-keys.js";
 import { registerServerTools } from "./tools/servers.js";
 import { registerStorageBoxTools } from "./tools/storage-boxes.js";
 import { registerVolumeTools } from "./tools/volumes.js";
+import { registerMetricsTools } from "./tools/metrics.js";
 
 // Create MCP server instance
 const server = new McpServer({
@@ -27,6 +28,7 @@ registerSSHKeyTools(server);
 registerServerTools(server);
 registerStorageBoxTools(server);
 registerVolumeTools(server);
+registerMetricsTools(server);
 
 // Main function
 async function main(): Promise<void> {

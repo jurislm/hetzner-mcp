@@ -392,6 +392,21 @@ export const UpdateSubaccountResponseSchema = z.object({
 });
 export type UpdateSubaccountResponse = z.infer<typeof UpdateSubaccountResponseSchema>;
 
+// Server Metrics
+const MetricsTimeSeriesEntrySchema = z.object({
+  values: z.array(z.tuple([z.number(), z.string()]))
+});
+
+export const ServerMetricsResponseSchema = z.object({
+  metrics: z.object({
+    start: z.string(),
+    end: z.string(),
+    step: z.number(),
+    time_series: z.record(z.string(), MetricsTimeSeriesEntrySchema)
+  })
+});
+export type ServerMetricsResponse = z.infer<typeof ServerMetricsResponseSchema>;
+
 // Cloud Volume
 export const HetznerVolumeSchema = z.object({
   id: z.number(),
