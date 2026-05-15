@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/jurislm/hetzner-mcp/compare/v1.3.0...v1.3.1) (2026-05-15)
+
+
+### Refactoring
+
+* remove 24 unused type aliases from types.ts ([f35025c](https://github.com/jurislm/hetzner-mcp/commit/f35025c90b81933ab028cd59dd22197067277660))
+* remove 24 unused type aliases from types.ts ([fd7f89f](https://github.com/jurislm/hetzner-mcp/commit/fd7f89f93b5e3c04e3beea2eaa304b73307db0cf))
+
 ## [1.3.0](https://github.com/jurislm/hetzner-mcp/compare/v1.2.1...v1.3.0) (2026-05-15)
 
 
