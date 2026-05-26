@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/jurislm/hetzner-mcp/compare/v1.3.2...v1.3.3) (2026-05-26)
+
+
+### Bug Fixes
+
+* **security:** post-review hardening — HTML escaping, IPv4 octet range, image regex + README rewrite ([#34](https://github.com/jurislm/hetzner-mcp/issues/34)) ([50fea57](https://github.com/jurislm/hetzner-mcp/commit/50fea57f3234070021399e0973c8c231471816bc))
+
 ## [1.3.2](https://github.com/jurislm/hetzner-mcp/compare/v1.3.1...v1.3.2) (2026-05-26)
 
 
