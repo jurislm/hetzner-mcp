@@ -1482,3 +1482,71 @@ describe("H-1 security: username / snapshot_id path injection prevention", () =>
     ).toBe(true);
   });
 });
+
+// M-2 security: password complexity policy enforcement
+describe("M-2 security: password complexity policy enforcement", () => {
+  type SchemaLike = { safeParse: (v: unknown) => { success: boolean } };
+  type ToolWithSchema = { name: string; opts: { inputSchema: SchemaLike } };
+
+  function captureWithSchema(): ToolWithSchema[] {
+    return captureRegisteredTools() as unknown as ToolWithSchema[];
+  }
+
+  const validCreateBase = {
+    name: "test-box",
+    storage_box_type: "bx11",
+    location: "fsn1",
+    response_format: "markdown"
+  };
+
+  // hetzner_create_storage_box — password
+  it("create_storage_box: rejects password with only lowercase (aaaaaaaaaaaa)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "aaaaaaaaaaaa" }).success
+    ).toBe(false);
+  });
+
+  it("create_storage_box: rejects password missing special char (Abcdef123456)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "Abcdef123456" }).success
+    ).toBe(false);
+  });
+
+  it("create_storage_box: rejects password shorter than 12 chars (Ab1!)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "Ab1!" }).success
+    ).toBe(false);
+  });
+
+  it("create_storage_box: accepts compliant password (Correct$Horse7)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "Correct$Horse7" }).success
+    ).toBe(true);
+  });
+
+  // hetzner_reset_storage_box_password — password
+  it("reset_password: rejects password with only lowercase (aaaaaaaaaaaa)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ id: 1, password: "aaaaaaaaaaaa" }).success
+    ).toBe(false);
+  });
+
+  it("reset_password: rejects password missing uppercase (correct$horse7)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ id: 1, password: "correct$horse7" }).success
+    ).toBe(false);
+  });
+
+  it("reset_password: accepts compliant password (NewP@ss123Word)", () => {
+    const tool = captureWithSchema().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    expect(
+      tool.opts.inputSchema.safeParse({ id: 1, password: "NewP@ss123Word" }).success
+    ).toBe(true);
+  });
+});
