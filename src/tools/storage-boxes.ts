@@ -30,6 +30,7 @@ import {
   HetznerAction,
   BooleanKeys
 } from "../types.js";
+import { escapeHtml } from "../utils.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const DEFAULT_PER_PAGE = 50;
@@ -47,15 +48,6 @@ const STORAGE_BOX_PROTOCOL_KEYS = [
 // C-3: constrain to keys whose value type is `boolean` so a typo like "name"
 // fails typecheck instead of silently filtering to false at runtime.
 const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly BooleanKeys<HetznerStorageBoxSubaccount>[];
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-}
 
 // Exported for unit testing.
 export function formatBytes(bytes: number): string {

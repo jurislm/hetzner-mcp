@@ -15,21 +15,13 @@ import {
   CreateSSHKeyResponseSchema,
   HetznerSSHKey
 } from "../types.js";
+import { escapeHtml } from "../utils.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const CLOUD_DEFAULT_PER_PAGE = 25;
 const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
 
 const paginatedFetch = createPaginatedFetch(makeApiRequest);
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-}
 
 function formatSSHKey(key: HetznerSSHKey): string {
   const lines = [

@@ -235,7 +235,7 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
             actualFps = await keyScanRunner(ipv4, sshPort);
           } catch (scanErr) {
             return {
-              content: [{ type: "text", text: `Error: fingerprint check failed — could not run ssh-keyscan: ${scanErr instanceof Error ? scanErr.message : String(scanErr)}` }],
+              content: [{ type: "text", text: `Error: fingerprint verification failed: ${scanErr instanceof Error ? scanErr.message : String(scanErr)}` }],
               isError: true
             };
           }
