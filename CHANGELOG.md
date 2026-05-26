@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/jurislm/hetzner-mcp/compare/v1.4.0...v1.4.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* **security:** comprehensive security hardening — input validation, escapeHtml, TOFU prevention, credential-safe logging ([#42](https://github.com/jurislm/hetzner-mcp/issues/42)) ([2e0e719](https://github.com/jurislm/hetzner-mcp/commit/2e0e7191cb816cca40871af8f14fd589f42b996d))
+
 ## [1.4.0](https://github.com/jurislm/hetzner-mcp/compare/v1.3.4...v1.4.0) (2026-05-26)
 
 
