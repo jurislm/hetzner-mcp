@@ -818,7 +818,10 @@ Use access settings to configure which protocols the subaccount can use.`,
       description: `Update access settings or comment for a Storage Box subaccount.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        username: z.string().min(1).describe("The subaccount username to update"),
+        username: z
+          .string()
+          .regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .describe("The subaccount username to update"),
         comment: z.string().optional().describe("New comment"),
         labels: z.record(z.string(), z.string()).optional().describe("Labels (replaces existing)"),
         ssh_enabled: z.boolean().optional().describe("Allow SSH access"),
@@ -881,7 +884,10 @@ Use access settings to configure which protocols the subaccount can use.`,
       description: `Delete a subaccount from a Storage Box.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        username: z.string().min(1).describe("The subaccount username to delete")
+        username: z
+          .string()
+          .regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .describe("The subaccount username to delete")
       }).strict(),
       annotations: {
         readOnlyHint: false,
@@ -919,7 +925,10 @@ Use access settings to configure which protocols the subaccount can use.`,
 ⚠️ DESTRUCTIVE: The snapshot will be permanently deleted and cannot be recovered.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        snapshot_id: z.string().min(1).describe("Snapshot name or numeric ID (as string)")
+        snapshot_id: z
+          .string()
+          .regex(/^[a-zA-Z0-9._-]+$/, "snapshot_id must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .describe("Snapshot name or numeric ID (as string)")
       }).strict(),
       annotations: {
         readOnlyHint: false,
