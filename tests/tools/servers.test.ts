@@ -212,6 +212,27 @@ describe("L-3 security: create_server body field character validation", () => {
       tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu-24.04" }).success
     ).toBe(true);
   });
+
+  it("accepts uppercase custom image name (Ubuntu-Hardened-2024)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "Ubuntu-Hardened-2024" }).success
+    ).toBe(true);
+  });
+
+  it("accepts numeric image ID string (12345)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "12345" }).success
+    ).toBe(true);
+  });
+
+  it("still rejects image with injection characters (ubuntu<script>)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu<script>" }).success
+    ).toBe(false);
+  });
 });
 
 // L-2b security: HTML escaping in non-label fields of formatServer
