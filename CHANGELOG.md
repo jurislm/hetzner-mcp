@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4](https://github.com/jurislm/hetzner-mcp/compare/v1.3.3...v1.3.4) (2026-05-26)
+
+
+### Documentation
+
+* rewrite README — focused, accurate, developer-first ([9bd1898](https://github.com/jurislm/hetzner-mcp/commit/9bd18987fc95fba5caa2ac8ef75e5e2cd436e7c0))
+
 ## [1.3.3](https://github.com/jurislm/hetzner-mcp/compare/v1.3.2...v1.3.3) (2026-05-26)
 
 
