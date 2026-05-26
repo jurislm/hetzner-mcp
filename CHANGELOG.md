@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/jurislm/hetzner-mcp/compare/v1.3.4...v1.4.0) (2026-05-26)
+
+
+### Features
+
+* add GitHub Pages landing page (docs/index.html) ([36688a9](https://github.com/jurislm/hetzner-mcp/commit/36688a983e25a38665dc395e72ee3986275050a2))
+* add i18n — 繁體中文, 日本語, 한국어 ([9fda04d](https://github.com/jurislm/hetzner-mcp/commit/9fda04d950b42a4ee2fdf5525be426f3ac1532ba))
+
+
+### Documentation
+
+* explain ⚠ legend in README and landing page ([6a343a0](https://github.com/jurislm/hetzner-mcp/commit/6a343a0d35d5c04c687b57ac6104f8f77ab7033d))
+
 ## [1.3.4](https://github.com/jurislm/hetzner-mcp/compare/v1.3.3...v1.3.4) (2026-05-26)
 
 
