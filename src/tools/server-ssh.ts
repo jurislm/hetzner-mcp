@@ -168,6 +168,12 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
             isError: true
           };
         }
+        if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ipv4)) {
+          return {
+            content: [{ type: "text", text: `Error: Resolved IPv4 address has unexpected format: ${ipv4}` }],
+            isError: true
+          };
+        }
 
         // Step 2: SSH and run free -m
         const stdout = await sshRunner(ipv4, sshPort, sshUser, "free -m");

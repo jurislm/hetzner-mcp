@@ -272,4 +272,19 @@ describe("hetzner_get_server_ram — error handling", () => {
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("network error");
   });
+
+  it("returns isError when API returns non-IPv4 string for ip field", async () => {
+    const badIpServer = {
+      server: {
+        ...serverResponse.server,
+        public_net: { ipv4: { ip: "not-an-ip" }, ipv6: { ip: "2a01:4f8::1" } }
+      }
+    };
+    mockedRequest.mockResolvedValueOnce(badIpServer);
+
+    const result = await captureHandler()({ id: 1, response_format: "markdown" });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/IPv4|invalid/i);
+  });
 });
