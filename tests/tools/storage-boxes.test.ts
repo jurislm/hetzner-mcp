@@ -733,6 +733,16 @@ describe("formatSnapshot", () => {
     });
     expect(out).toContain("- **Labels**: env=prod, team=data");
   });
+
+  it("escapes HTML special chars in label keys and values", () => {
+    const out = formatSnapshot({
+      ...baseSnapshot,
+      labels: { "<script>": "alert('xss')" }
+    });
+    expect(out).not.toContain("<script>");
+    expect(out).toContain("&lt;script&gt;");
+    expect(out).toContain("alert(&#x27;xss&#x27;)");
+  });
 });
 
 describe("formatAction", () => {

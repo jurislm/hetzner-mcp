@@ -48,6 +48,15 @@ const STORAGE_BOX_PROTOCOL_KEYS = [
 // fails typecheck instead of silently filtering to false at runtime.
 const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly BooleanKeys<HetznerStorageBoxSubaccount>[];
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 // Exported for unit testing.
 export function formatBytes(bytes: number): string {
   const gib = bytes / (1024 ** 3);
@@ -121,7 +130,7 @@ export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
   }
   if (snap.labels && Object.keys(snap.labels).length > 0) {
     const labelStr = Object.entries(snap.labels)
-      .map(([k, v]) => `${k}=${v}`)
+      .map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(v)}`)
       .join(", ");
     lines.push(`- **Labels**: ${labelStr}`);
   }

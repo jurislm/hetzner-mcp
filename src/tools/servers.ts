@@ -23,6 +23,15 @@ const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} page
 
 const paginatedFetch = createPaginatedFetch(makeApiRequest);
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 function formatServer(server: HetznerServer): string {
   const ipv4 = server.public_net.ipv4?.ip || "N/A";
   const ipv6 = server.public_net.ipv6?.ip || "N/A";
@@ -43,7 +52,7 @@ function formatServer(server: HetznerServer): string {
   lines.push(`- **Created**: ${new Date(server.created).toLocaleString()}`);
 
   if (Object.keys(server.labels).length > 0) {
-    lines.push(`- **Labels**: ${Object.entries(server.labels).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    lines.push(`- **Labels**: ${Object.entries(server.labels).map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(v)}`).join(", ")}`);
   }
 
   return lines.join("\n");
