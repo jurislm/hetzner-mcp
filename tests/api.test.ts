@@ -225,7 +225,12 @@ describe("__resetClientsForTesting — production guard (I-5)", () => {
     expect(() => __resetClientsForTesting()).toThrowError(/must not be called in production/);
   });
 
-  it("works normally in test/development env", () => {
+  it("throws when NODE_ENV is undefined (real MCP production context has no NODE_ENV set)", () => {
+    delete process.env.NODE_ENV;
+    expect(() => __resetClientsForTesting()).toThrowError(/must not be called in production/);
+  });
+
+  it("works normally in test env", () => {
     process.env.NODE_ENV = "test";
     expect(() => __resetClientsForTesting()).not.toThrow();
   });
