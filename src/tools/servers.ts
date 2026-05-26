@@ -221,7 +221,7 @@ Returns the new server details including IP address and root password (if no SSH
           .regex(/^[a-zA-Z0-9-]+$/, "Name can only contain letters, digits, and hyphens")
           .describe("Server name"),
         server_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "server_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Server type (e.g., 'cx22', 'cpx11')"),
-        image: z.string().min(1).regex(/^[a-z0-9._-]+$/, "image must be a valid slug (lowercase alphanumeric, dots, hyphens)").describe("OS image name (e.g., 'ubuntu-24.04')"),
+        image: z.string().min(1).regex(/^[a-zA-Z0-9._-]+$/, "image must be a valid slug (alphanumeric, dots, hyphens)").describe("OS image name or numeric ID (e.g., 'ubuntu-24.04', 'Ubuntu-Hardened-2024', '12345')"),
         location: z.string().regex(/^[a-z0-9-]+$/, "location must be a valid slug (lowercase alphanumeric and hyphens)").optional().describe("Datacenter location (e.g., 'fsn1', 'nbg1')"),
         ssh_keys: z.array(z.union([z.string(), z.number()])).optional()
           .describe("SSH key names or IDs for access"),
