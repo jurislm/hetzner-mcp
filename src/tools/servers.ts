@@ -37,16 +37,16 @@ function formatServer(server: HetznerServer): string {
   const ipv6 = server.public_net.ipv6?.ip || "N/A";
 
   const lines = [
-    `## ${server.name} (ID: ${server.id})`,
+    `## ${escapeHtml(server.name)} (ID: ${server.id})`,
     `- **Status**: ${server.status}`,
     `- **IPv4**: ${ipv4}`,
     `- **IPv6**: ${ipv6}`,
     `- **Type**: ${server.server_type.name} (${server.server_type.cores} cores, ${server.server_type.memory}GB RAM, ${server.server_type.disk}GB disk)`,
-    `- **Location**: ${server.datacenter.location.city}, ${server.datacenter.location.country} (${server.datacenter.name})`
+    `- **Location**: ${escapeHtml(server.datacenter.location.city)}, ${escapeHtml(server.datacenter.location.country)} (${escapeHtml(server.datacenter.name)})`
   ];
 
   if (server.image) {
-    lines.push(`- **Image**: ${server.image.name} (${server.image.os_flavor} ${server.image.os_version})`);
+    lines.push(`- **Image**: ${escapeHtml(server.image.name)} (${server.image.os_flavor} ${server.image.os_version})`);
   }
 
   lines.push(`- **Created**: ${new Date(server.created).toLocaleString()}`);

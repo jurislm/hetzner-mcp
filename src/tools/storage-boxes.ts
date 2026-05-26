@@ -78,12 +78,12 @@ export function formatStorageBox(box: HetznerStorageBox): string {
     ? Math.round((box.stats.size_data / totalSize) * 100)
     : 0;
   return [
-    `## ${box.name} (ID: ${box.id})`,
-    `- **Username**: ${box.username}`,
+    `## ${escapeHtml(box.name)} (ID: ${box.id})`,
+    `- **Username**: ${escapeHtml(box.username)}`,
     `- **Status**: ${box.status}`,
     `- **Type**: ${box.storage_box_type.name}`,
     `- **Location**: ${box.location.name}`,
-    `- **Server**: ${box.server ?? "—"}`,
+    `- **Server**: ${box.server ? escapeHtml(box.server) : "—"}`,
     `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(totalSize)} total (~${usagePercent}% used)`,
     `- **Snapshots**: ${formatBytes(box.stats.size_snapshots)}`,
     `- **Protocols**: ${protocols}`,
@@ -99,15 +99,15 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
     .join(", ") || "none";
 
   const lines: string[] = [
-    `## ${sub.username}`,
-    `- **Home directory**: ${sub.home_directory}`,
+    `## ${escapeHtml(sub.username)}`,
+    `- **Home directory**: ${escapeHtml(sub.home_directory)}`,
     `- **Protocols**: ${protocols}`,
     `- **External reachability**: ${sub.external_reachability ? "yes" : "no"}`,
     `- **Read-only**: ${sub.readonly ? "yes" : "no"}`
   ];
 
   if (sub.comment) {
-    lines.push(`- **Comment**: ${sub.comment}`);
+    lines.push(`- **Comment**: ${escapeHtml(sub.comment)}`);
   }
 
   return lines.join("\n");
@@ -116,11 +116,11 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
 // Exported for unit testing.
 export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
   const lines: string[] = [
-    `## ${snap.name} (ID: ${snap.id})`,
+    `## ${escapeHtml(snap.name)} (ID: ${snap.id})`,
     `- **Created**: ${snap.created.slice(0, 10)}`
   ];
   if (snap.description) {
-    lines.push(`- **Description**: ${snap.description}`);
+    lines.push(`- **Description**: ${escapeHtml(snap.description)}`);
   }
   if (snap.stats?.size !== undefined) {
     lines.push(`- **Size**: ${formatBytes(snap.stats.size)}`);

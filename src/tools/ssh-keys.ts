@@ -33,7 +33,7 @@ function escapeHtml(s: string): string {
 
 function formatSSHKey(key: HetznerSSHKey): string {
   const lines = [
-    `## ${key.name} (ID: ${key.id})`,
+    `## ${escapeHtml(key.name)} (ID: ${key.id})`,
     `- **Fingerprint**: ${key.fingerprint}`,
     `- **Created**: ${new Date(key.created).toLocaleString()}`
   ];
