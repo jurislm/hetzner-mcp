@@ -1032,6 +1032,30 @@ describe("hetzner_create_storage_box", () => {
     const tool = tools.find((t) => t.name === "hetzner_create_storage_box")!;
     expect(tool.opts.description).toMatch(/costs?/i);
   });
+
+  it("JSON response does not include unexpected top-level fields (e.g. echoed password)", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_create_storage_box")!.handler;
+    // Simulate an API response that unexpectedly echoes back extra fields.
+    mockedRequest.mockResolvedValueOnce({
+      storage_box: baseBox,
+      action: baseAction,
+      password: "ShouldNotAppear1!"
+    });
+
+    const result = await handler({
+      storage_box_type: "bx11",
+      location: "fsn1",
+      name: "new-box",
+      password: "TestP@ss123!",
+      response_format: "json"
+    });
+
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.password).toBeUndefined();
+    expect(parsed.storage_box).toBeDefined();
+    expect(parsed.action).toBeDefined();
+  });
 });
 
 describe("hetzner_update_storage_box", () => {

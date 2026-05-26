@@ -606,7 +606,7 @@ Returns the new Storage Box and an action tracking provisioning.`,
         const data = await makeStorageBoxApiRequest("/storage_boxes", CreateStorageBoxResponseSchema, "POST", body);
 
         if (params.response_format === ResponseFormat.JSON) {
-          return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+          return { content: [{ type: "text", text: JSON.stringify({ storage_box: data.storage_box, action: data.action }, null, 2) }] };
         }
 
         const lines = [
