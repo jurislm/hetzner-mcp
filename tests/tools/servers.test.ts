@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 vi.mock("../../src/api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api.js")>();
@@ -55,7 +55,11 @@ type ToolHandler = (params: unknown) => Promise<{ content: { type: string; text:
 interface CapturedTool {
   name: string;
   handler: ToolHandler;
-  opts: { annotations?: Record<string, unknown> };
+  opts: {
+    annotations?: Record<string, unknown>;
+    description?: string;
+    inputSchema?: z.ZodType<unknown>;
+  };
 }
 
 function captureRegisteredTools(): CapturedTool[] {
@@ -176,5 +180,36 @@ describe("hetzner_list_servers — edge cases", () => {
   it("ListServersResponseSchema parses without error", () => {
     const result = ListServersResponseSchema.safeParse({ servers: [baseServer], meta: { pagination: { next_page: null } } });
     expect(result.success).toBe(true);
+  });
+});
+
+// L-3 security: POST body field character validation
+describe("L-3 security: create_server body field character validation", () => {
+  it("rejects server_type with special characters", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx; rm -rf", image: "ubuntu-24.04" }).success
+    ).toBe(false);
+  });
+
+  it("rejects image with special characters", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu<script>" }).success
+    ).toBe(false);
+  });
+
+  it("accepts valid server_type slug (cx53)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx53", image: "ubuntu-24.04" }).success
+    ).toBe(true);
+  });
+
+  it("accepts valid image slug (ubuntu-24.04)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu-24.04" }).success
+    ).toBe(true);
   });
 });

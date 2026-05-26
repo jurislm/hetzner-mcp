@@ -1580,6 +1580,45 @@ describe("H-1b security: rollback snapshot injection prevention", () => {
   });
 });
 
+// L-3 security: POST body field character validation for create_storage_box
+describe("L-3 security: create_storage_box body field character validation", () => {
+  const validBase = {
+    name: "test-box",
+    storage_box_type: "bx11",
+    location: "fsn1",
+    password: "TestP@ss123!",
+    response_format: "markdown"
+  };
+
+  it("rejects storage_box_type with special characters", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ ...validBase, storage_box_type: "bx11; rm -rf" }).success
+    ).toBe(false);
+  });
+
+  it("rejects location with special characters", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ ...validBase, location: "fsn1<evil>" }).success
+    ).toBe(false);
+  });
+
+  it("accepts valid storage_box_type slug (bx11)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema?.safeParse(validBase).success
+    ).toBe(true);
+  });
+
+  it("accepts valid location slug (hel1)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ ...validBase, location: "hel1" }).success
+    ).toBe(true);
+  });
+});
+
 // M-2 security: password complexity policy enforcement
 describe("M-2 security: password complexity policy enforcement", () => {
   const validCreateBase = {

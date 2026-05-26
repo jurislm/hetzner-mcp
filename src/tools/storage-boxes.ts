@@ -569,8 +569,8 @@ Required parameters:
 
 Returns the new Storage Box and an action tracking provisioning.`,
       inputSchema: z.object({
-        storage_box_type: z.string().min(1).describe("Storage box type name (e.g., 'bx11', 'bx20')"),
-        location: z.string().min(1).describe("Location name (e.g., 'fsn1', 'nbg1', 'hel1')"),
+        storage_box_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "storage_box_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Storage box type name (e.g., 'bx11', 'bx20')"),
+        location: z.string().min(1).regex(/^[a-z0-9-]+$/, "location must be a valid slug (lowercase alphanumeric and hyphens)").describe("Location name (e.g., 'fsn1', 'nbg1', 'hel1')"),
         name: z.string().min(1).describe("Name for the storage box"),
         password: z
           .string()
@@ -1026,7 +1026,7 @@ When delete protection is enabled, the Storage Box cannot be deleted until prote
 ⚠️ WARNING: Downgrading to a smaller plan may cause data loss if current usage exceeds the new plan's capacity.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        storage_box_type: z.string().min(1).describe("Target plan name (e.g., 'bx11', 'bx20', 'bx60')")
+        storage_box_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "storage_box_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Target plan name (e.g., 'bx11', 'bx20', 'bx60')")
       }).strict(),
       annotations: {
         readOnlyHint: false,
