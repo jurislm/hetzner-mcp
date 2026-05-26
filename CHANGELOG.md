@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/jurislm/hetzner-mcp/compare/v1.3.1...v1.3.2) (2026-05-26)
+
+
+### Bug Fixes
+
+* **security:** resolve H-1/H-2/M-1/M-2/M-3 — path injection, CVE deps, password policy, SSH trust ([#32](https://github.com/jurislm/hetzner-mcp/issues/32)) ([87b6327](https://github.com/jurislm/hetzner-mcp/commit/87b6327c2b62df623c66819160a2bd82f82c5df0))
+
 ## [1.3.1](https://github.com/jurislm/hetzner-mcp/compare/v1.3.0...v1.3.1) (2026-05-15)
 
 
