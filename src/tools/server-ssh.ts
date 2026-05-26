@@ -168,7 +168,7 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
             isError: true
           };
         }
-        if (!/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ipv4)) {
+        if (!/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(ipv4)) {
           return {
             content: [{ type: "text", text: `Error: Resolved IPv4 address has unexpected format: ${ipv4}` }],
             isError: true
