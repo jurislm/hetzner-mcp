@@ -48,6 +48,8 @@ Storage Box tools call `api.hetzner.com/v1` (unified API), while all other tools
 
 ## Available Tools (40 total)
 
+⚠️ marks destructive or hard-to-reverse operations.
+
 ### Servers (7)
 
 | Tool | Description | ⚠️ |
