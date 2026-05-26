@@ -5,12 +5,13 @@ import { makeApiRequest, handleApiError } from "../api.js";
 import { ResponseFormat, ResponseFormatSchema, GetServerResponseSchema } from "../types.js";
 
 /**
- * Resolves the SHA256 fingerprint of a host's SSH key via ssh-keyscan + ssh-keygen.
+ * Resolves SHA256 fingerprints of all host SSH key types via ssh-keyscan + ssh-keygen.
+ * Returns an array because a host advertises multiple key types (RSA, ECDSA, ed25519).
  * Exported so tests can inject a mock via the keyScanRunner DI parameter.
  */
-export function runSshKeyScan(host: string, port: number): Promise<string> {
+export function runSshKeyScan(host: string, port: number): Promise<string[]> {
   return new Promise((resolve, reject) => {
-    // Step 1: fetch raw host key entries
+    // Step 1: fetch raw host key entries (all key types)
     execFile(
       "ssh-keyscan",
       ["-p", String(port), "-T", "10", host],
@@ -21,19 +22,25 @@ export function runSshKeyScan(host: string, port: number): Promise<string> {
           reject(new Error(`ssh-keyscan failed: ${scanStderr.trim() || "no output"}`));
           return;
         }
-        // Step 2: compute fingerprint from the raw key via ssh-keygen -l
+        // Reject if ssh-keyscan exited non-zero even with partial stdout — data may be corrupt.
+        if (scanErr) {
+          reject(scanErr);
+          return;
+        }
+        // Step 2: compute all fingerprints from the raw keys via ssh-keygen -l
         const proc = execFile(
           "ssh-keygen",
           ["-l", "-E", "sha256", "-f", "/dev/stdin"],
           { timeout: 10_000 },
           (keygenErr, keygenOut) => {
             if (keygenErr) { reject(keygenErr); return; }
-            const match = keygenOut.match(/SHA256:[A-Za-z0-9+/]+/);
-            if (!match) {
+            // Extract every SHA256:... token; include trailing '=' (base64 padding).
+            const matches = [...keygenOut.matchAll(/SHA256:[A-Za-z0-9+/]+=*/g)].map(m => m[0]);
+            if (matches.length === 0) {
               reject(new Error(`Could not parse fingerprint from: ${keygenOut.trim()}`));
               return;
             }
-            resolve(match[0]);
+            resolve(matches);
           }
         );
         proc.stdin?.write(rawKey + "\n");
@@ -223,18 +230,18 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
 
         // Step 2: verify host fingerprint if caller supplied one
         if (params.expected_fingerprint) {
-          let actualFp: string;
+          let actualFps: string[];
           try {
-            actualFp = await keyScanRunner(ipv4, sshPort);
+            actualFps = await keyScanRunner(ipv4, sshPort);
           } catch (scanErr) {
             return {
               content: [{ type: "text", text: `Error: fingerprint check failed — could not run ssh-keyscan: ${scanErr instanceof Error ? scanErr.message : String(scanErr)}` }],
               isError: true
             };
           }
-          if (actualFp !== params.expected_fingerprint) {
+          if (!actualFps.includes(params.expected_fingerprint)) {
             return {
-              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${actualFp}` }],
+              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${actualFps.join(", ")}` }],
               isError: true
             };
           }

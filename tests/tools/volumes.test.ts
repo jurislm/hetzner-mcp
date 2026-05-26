@@ -408,3 +408,19 @@ describe("hetzner_get_volume — escapeHtml in output", () => {
     expect(result.content[0].text).toContain(SAFE);
   });
 });
+
+// ── [Finding #6] escapeHtml apostrophe consistency ───────────────────────────
+
+describe("hetzner_list_volumes — escapeHtml apostrophe uses &#x27; (Finding #6)", () => {
+  it("encodes apostrophe in vol.name as &#x27; not &#39;", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_volumes")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      volumes: [{ ...baseVolume, name: "O'Brian's volume" }],
+      meta: { pagination: { next_page: null } }
+    });
+    const result = await handler({ response_format: "markdown" });
+    expect(result.content[0].text).not.toContain("&#39;");
+    expect(result.content[0].text).toContain("&#x27;");
+  });
+});

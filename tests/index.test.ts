@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatStartupError } from "../src/index.js";
+import { formatStartupError } from "../src/utils.js";
 import { AxiosError, AxiosHeaders } from "axios";
 
 describe("formatStartupError", () => {

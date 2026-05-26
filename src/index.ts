@@ -16,6 +16,7 @@ import { registerStorageBoxTools } from "./tools/storage-boxes.js";
 import { registerVolumeTools } from "./tools/volumes.js";
 import { registerMetricsTools } from "./tools/metrics.js";
 import { registerServerSshTools } from "./tools/server-ssh.js";
+import { formatStartupError } from "./utils.js";
 
 // Create MCP server instance
 const server = new McpServer({
@@ -31,14 +32,6 @@ registerStorageBoxTools(server);
 registerVolumeTools(server);
 registerMetricsTools(server);
 registerServerSshTools(server);
-
-/** Extracts a safe, credential-free string from an unknown thrown value. */
-export function formatStartupError(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
-}
 
 // Main function
 async function main(): Promise<void> {
