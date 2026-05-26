@@ -1,11 +1,11 @@
 # Hetzner MCP Server
 
-[![npm version](https://badge.fury.io/js/hetzner-mcp-server.svg)](https://www.npmjs.com/package/hetzner-mcp-server)
+[![npm version](https://badge.fury.io/js/%40jurislm%2Fhetzner-mcp.svg)](https://www.npmjs.com/package/@jurislm/hetzner-mcp)
 
-An MCP server that lets Claude Code manage your Hetzner Cloud servers.
+An MCP server that lets Claude Code manage your Hetzner Cloud infrastructure — servers, SSH keys, Cloud Volumes, Storage Boxes, and live metrics.
 
 ```bash
-npm install -g hetzner-mcp-server
+npm install -g @jurislm/hetzner-mcp
 ```
 
 ---
@@ -20,8 +20,6 @@ npm install -g hetzner-mcp-server
 3. Claude can now use "tools" that the MCP server provides
 4. When you ask Claude to "create a server", it uses these tools to actually do it
 
-**Your understanding is correct:** MCP exposes certain API capabilities as tool calls for the AI agent. The AI can then decide when to use these tools to help you accomplish tasks.
-
 ---
 
 ## What is Hetzner Cloud?
@@ -34,33 +32,29 @@ A **Project** is like a folder or container that groups related resources togeth
 
 1. You create **Projects** to organize your work (e.g., "My Blog", "Client Website", "Test Environment")
 2. Inside each project, you create **Servers** (the actual virtual machines)
-3. Each project also contains related resources: SSH keys, firewall rules, networks, etc.
+3. Each project also contains related resources: SSH keys, firewall rules, volumes, etc.
 
-**Example:** You might have:
-- Project "Personal Blog" → 1 server running your blog
-- Project "Client Work" → 3 servers for different client websites
-- Project "Testing" → Temporary servers you spin up and delete
-
-Each project is completely separate - servers in one project can't see servers in another.
+Each project is completely separate — servers in one project can't see servers in another.
 
 ---
 
 ## What Can This MCP Do?
 
 ### It CAN:
-- **Create servers** (this costs money!)
-- **Delete servers** (permanent, irreversible)
-- **Power on/off servers** (like pressing the power button)
-- **Reboot servers**
-- **List all your servers** and see their details (IP address, status, specs)
-- **Manage SSH keys** (the keys used to log into your servers)
-- **Show available options** (server sizes, OS images, datacenter locations)
+- **Create and manage servers** (this costs money!)
+- **Power on/off/reboot servers**
+- **List servers** with their IPs, status, and specs
+- **Manage SSH keys** used to log into servers
+- **Manage Cloud Volumes** — attach/detach persistent block storage
+- **Monitor server performance** — CPU, disk I/O, network, and RAM usage
+- **Manage Storage Boxes** — full CRUD for Hetzner's backup/archive storage
+- **Show available options** (server types, OS images, datacenter locations)
 
 ### It CANNOT:
 - Create new Projects (you do that manually in the Hetzner web console)
 - Manage billing or payment methods
 - Access other projects (it only sees the project whose token you provide)
-- Manage advanced features like load balancers, volumes, or firewalls (not implemented yet)
+- Manage firewalls, load balancers, floating IPs, or networks (not implemented)
 
 ### Important: This Can Spend Your Money!
 
@@ -112,41 +106,6 @@ Combine this MCP with [Kamal](https://kamal-deploy.org/) (DHH's deployment tool)
 | **Vercel** | $20+/mo | Serverless, limited compute |
 | **Render** | $7-25/mo per service | Managed containers |
 
-### When to Use What
-
-**Choose Hetzner MCP + Kamal if you:**
-- Want full control over your infrastructure
-- Are comfortable with CLI (Claude helps!)
-- Want the cheapest option for production apps
-- Need to run any Docker-based app (not just Rails)
-- Want to learn how deployment actually works
-
-**Choose Hatchbox if you:**
-- Only deploy Rails apps
-- Want a polished web UI
-- Need team access management
-- Prefer fully managed backups/updates
-- Don't want to think about servers
-
-**Choose Vercel if you:**
-- Build Next.js/frontend apps
-- Want zero server management
-- Need edge functions/CDN
-- Don't need persistent servers
-
-**Choose Render if you:**
-- Want managed containers without complexity
-- Need managed databases included
-- Want simple scaling
-- Prefer web UI over CLI
-
-### Quick Start with Kamal
-
-1. Install the [kamal-deploy skill](https://github.com/nityeshaga/claude-code-essentials/tree/main/plugins/basics/skills/kamal-deploy) from claude-code-essentials
-2. Ask Claude: "Create a cx22 server with Ubuntu for my-app" (uses this MCP)
-3. Ask Claude: "Help me set up Kamal to deploy my Rails app to this server"
-4. Run `kamal setup` and you're live!
-
 ---
 
 ## How Authentication Works
@@ -170,7 +129,7 @@ For this MCP to be useful, you need **Read & Write** permissions.
 
 ### Security Considerations
 
-Your API token is powerful - anyone with it can create/delete servers in your project. Keep it safe:
+Your API token is powerful — anyone with it can create/delete servers in your project. Keep it safe:
 
 1. **Never share your token** or commit it to git
 2. **Store it in environment variables**, not in code
@@ -180,16 +139,16 @@ Your API token is powerful - anyone with it can create/delete servers in your pr
 
 ### Storage Boxes — Different Token Required
 
-Storage Box tools (`hetzner_list_storage_boxes`, `hetzner_get_storage_box`, `hetzner_list_storage_box_subaccounts`, `hetzner_list_storage_box_snapshots`, `hetzner_create_storage_box_snapshot`, `hetzner_rollback_storage_box_snapshot`) use Hetzner's **unified API** at `api.hetzner.com/v1`, which is **not** the same as the Cloud API used by all the other tools. The two APIs accept different token classes:
+Storage Box tools use Hetzner's **unified API** at `api.hetzner.com/v1`, which is **not** the same as the Cloud API used by all other tools. The two APIs accept different token classes:
 
 | Tool category | API endpoint | Token source |
 |---|---|---|
-| Servers, SSH keys, reference | `api.hetzner.cloud/v1` | [Cloud project tokens](https://console.hetzner.cloud) |
+| Servers, SSH keys, Volumes, Metrics | `api.hetzner.cloud/v1` | [Cloud project tokens](https://console.hetzner.cloud) |
 | Storage Boxes | `api.hetzner.com/v1` | [Account-level unified tokens](https://console.hetzner.com/account/security/api-tokens) |
 
 **A Cloud-project token does NOT authenticate against the unified API.** If you only set `HETZNER_API_TOKEN` to a Cloud token, Storage Box tools will return `401 Unauthorized`.
 
-**Two ways to configure**:
+**Two ways to configure:**
 
 1. **Single unified token (simplest)**: Generate a unified token from `console.hetzner.com/account/security/api-tokens` and set `HETZNER_API_TOKEN` to it. The unified token authenticates against both APIs.
 2. **Separate tokens (recommended for least-privilege)**: Set `HETZNER_API_TOKEN` to a Cloud-project token AND `HETZNER_API_TOKEN_UNIFIED` to a unified token. The Storage Box client will prefer `HETZNER_API_TOKEN_UNIFIED`.
@@ -208,7 +167,7 @@ If neither variable is set when a Storage Box tool is invoked, you'll get a clea
 6. Enter a name (e.g., "Claude Code MCP")
 7. Select **Read & Write** permissions
 8. Click **Generate API Token**
-9. **Copy the token immediately** - it won't be shown again!
+9. **Copy the token immediately** — it won't be shown again!
 
 ---
 
@@ -222,7 +181,7 @@ If neither variable is set when a Storage Box tool is invoked, you'll get a clea
 ### Option 1: Install from npm (Recommended)
 
 ```bash
-npm install -g hetzner-mcp-server
+npm install -g @jurislm/hetzner-mcp
 ```
 
 Then configure Claude Code to use it (see below).
@@ -230,14 +189,9 @@ Then configure Claude Code to use it (see below).
 ### Option 2: Clone and Build
 
 ```bash
-# Clone the repository
-git clone https://github.com/nityeshaga/hetzner-mcp-server.git
-cd hetzner-mcp-server
-
-# Install dependencies
+git clone https://github.com/jurislm/hetzner-mcp.git
+cd hetzner-mcp
 npm install
-
-# Build the TypeScript code
 npm run build
 ```
 
@@ -251,15 +205,13 @@ Add the MCP server config to **`~/.claude.json`** (your user-level Claude Code c
 
 ### If installed via npm (Option 1):
 
-Open `~/.claude.json` and add `hetzner` to the `mcpServers` object:
-
 ```json
 {
   "mcpServers": {
     "hetzner": {
       "type": "stdio",
       "command": "npx",
-      "args": ["hetzner-mcp-server"],
+      "args": ["@jurislm/hetzner-mcp"],
       "env": {
         "HETZNER_API_TOKEN": "your-api-token-here"
       }
@@ -268,23 +220,25 @@ Open `~/.claude.json` and add `hetzner` to the `mcpServers` object:
 }
 ```
 
-If you already have other MCP servers configured (like `figma`), just add `hetzner` alongside them:
+For Storage Box tools, also add the unified token:
 
 ```json
 {
   "mcpServers": {
-    "figma": { ... },
     "hetzner": {
       "type": "stdio",
       "command": "npx",
-      "args": ["hetzner-mcp-server"],
+      "args": ["@jurislm/hetzner-mcp"],
       "env": {
-        "HETZNER_API_TOKEN": "your-api-token-here"
+        "HETZNER_API_TOKEN": "your-cloud-project-token",
+        "HETZNER_API_TOKEN_UNIFIED": "your-unified-token"
       }
     }
   }
 }
 ```
+
+If you already have other MCP servers configured, just add `hetzner` alongside them.
 
 ### If cloned from GitHub (Option 2):
 
@@ -294,7 +248,7 @@ If you already have other MCP servers configured (like `figma`), just add `hetzn
     "hetzner": {
       "type": "stdio",
       "command": "node",
-      "args": ["/path/to/hetzner-mcp-server/dist/index.js"],
+      "args": ["/path/to/hetzner-mcp/dist/index.js"],
       "env": {
         "HETZNER_API_TOKEN": "your-api-token-here"
       }
@@ -303,11 +257,7 @@ If you already have other MCP servers configured (like `figma`), just add `hetzn
 }
 ```
 
-Replace `/path/to/hetzner-mcp-server` with the actual path where you cloned the repo.
-
-Replace `your-api-token-here` with your actual Hetzner API token.
-
-Then **restart Claude Code** for the changes to take effect.
+Replace `/path/to/hetzner-mcp` with the actual path where you cloned the repo, then **restart Claude Code**.
 
 ---
 
@@ -322,6 +272,7 @@ Once configured, you can talk to Claude naturally:
 - "What server types are available and how much do they cost?"
 - "What locations can I deploy to?"
 - "What OS images are available?"
+- "Show me my Cloud Volumes"
 
 ### Creating Servers
 - "Create a new server called my-app with Ubuntu 24.04"
@@ -331,52 +282,109 @@ Once configured, you can talk to Claude naturally:
 ### Managing Servers
 - "Power off server 12345"
 - "Reboot my-app server"
-- "Delete the test-server" (be careful - this is permanent!)
+- "Delete the test-server" (be careful — this is permanent!)
+
+### Monitoring
+- "Get CPU and disk metrics for server 12345"
+- "Check RAM usage on my-app via SSH"
 
 ### Managing SSH Keys
-- "Add my SSH public key" (then paste the key)
+- "Add my SSH public key"
 - "List my SSH keys"
 - "Delete SSH key 789"
 
+### Managing Storage Boxes
+- "List my storage boxes"
+- "Create a snapshot of storage box 561406"
+- "Show me the subaccounts for box 561406"
+
 ---
 
-## Available Tools (20 total)
+## Available Tools (40 total)
 
-### Server Tools (7)
-| Tool | What it does |
-|------|--------------|
-| `hetzner_list_servers` | Shows all servers in the project |
-| `hetzner_get_server` | Shows details of one server (IP, status, specs) |
-| `hetzner_create_server` | Creates a new server (costs money!) |
-| `hetzner_delete_server` | Permanently deletes a server |
-| `hetzner_power_on_server` | Turns on a powered-off server |
-| `hetzner_power_off_server` | Hard power off (like pulling the plug) |
-| `hetzner_reboot_server` | Hard reboot (like pressing reset button) |
+### Servers (7)
+| Tool | What it does | Destructive? |
+|------|--------------|:---:|
+| `hetzner_list_servers` | Lists all servers with status, IPs, specs | |
+| `hetzner_get_server` | Gets details of one server | |
+| `hetzner_create_server` | Creates a new server (costs money!) | |
+| `hetzner_delete_server` | Permanently deletes a server | ⚠️ |
+| `hetzner_power_on_server` | Turns on a powered-off server | |
+| `hetzner_power_off_server` | Hard power off (like pulling the plug) | ⚠️ |
+| `hetzner_reboot_server` | Hard reboot (like pressing reset button) | ⚠️ |
 
-### SSH Key Tools (4)
-| Tool | What it does |
-|------|--------------|
-| `hetzner_list_ssh_keys` | Shows all SSH keys in the project |
-| `hetzner_get_ssh_key` | Shows details of one SSH key |
-| `hetzner_create_ssh_key` | Adds a new SSH public key |
-| `hetzner_delete_ssh_key` | Removes an SSH key |
+### SSH Keys (4)
+| Tool | What it does | Destructive? |
+|------|--------------|:---:|
+| `hetzner_list_ssh_keys` | Lists all SSH keys in the project | |
+| `hetzner_get_ssh_key` | Gets details of one SSH key | |
+| `hetzner_create_ssh_key` | Adds a new SSH public key | |
+| `hetzner_delete_ssh_key` | Removes an SSH key | ⚠️ |
 
-### Reference Tools (3)
+### Reference (3)
 | Tool | What it does |
 |------|--------------|
 | `hetzner_list_server_types` | Shows available sizes and prices |
 | `hetzner_list_images` | Shows available operating systems |
 | `hetzner_list_locations` | Shows available datacenters |
 
-### Storage Box Tools (6) — uses unified API token (see [Storage Boxes — Different Token Required](#storage-boxes--different-token-required))
+### Cloud Volumes (4)
+| Tool | What it does | Destructive? |
+|------|--------------|:---:|
+| `hetzner_list_volumes` | Lists all Volumes (size, mount path, attached server) | |
+| `hetzner_get_volume` | Gets details of one Volume | |
+| `hetzner_attach_volume` | Attaches a Volume to a server | ⚠️ |
+| `hetzner_detach_volume` | Detaches a Volume from its server | ⚠️ |
+
+### Server Metrics (1)
 | Tool | What it does |
 |------|--------------|
-| `hetzner_list_storage_boxes` | Lists all Storage Boxes (auto-paginates, cap 5 pages × 50) |
-| `hetzner_get_storage_box` | Shows details of one Storage Box |
-| `hetzner_list_storage_box_subaccounts` | Lists subaccounts for a Storage Box (auto-paginates) |
-| `hetzner_list_storage_box_snapshots` | Lists snapshots for a Storage Box (auto-paginates) |
-| `hetzner_create_storage_box_snapshot` | Triggers an on-demand snapshot (optional description / labels) |
-| `hetzner_rollback_storage_box_snapshot` | **Destructive** — rolls a Storage Box back to a snapshot (overwrites data) |
+| `hetzner_get_server_metrics` | Gets CPU, disk I/O, and network metrics (default: last 5 min) |
+
+### Server RAM via SSH (1)
+| Tool | What it does |
+|------|--------------|
+| `hetzner_get_server_ram` | SSHes into the server and runs `free -m` to get RAM/swap usage (Hetzner Metrics API does not expose memory) |
+
+### Storage Boxes (20) — requires unified API token
+
+Storage Box tools use the unified API (`api.hetzner.com/v1`). Set `HETZNER_API_TOKEN_UNIFIED` to a token from `console.hetzner.com/account/security/api-tokens`.
+
+#### Core Operations
+| Tool | What it does | Destructive? |
+|------|--------------|:---:|
+| `hetzner_list_storage_boxes` | Lists all Storage Boxes (auto-paginates) | |
+| `hetzner_get_storage_box` | Gets details of one Storage Box | |
+| `hetzner_create_storage_box` | Creates a new Storage Box (costs money!) | |
+| `hetzner_update_storage_box` | Updates name or labels | |
+| `hetzner_delete_storage_box` | Permanently deletes a Storage Box | ⚠️ |
+| `hetzner_change_storage_box_type` | Upgrades or downgrades the Storage Box plan | ⚠️ |
+| `hetzner_change_storage_box_protection` | Enables/disables delete protection | |
+| `hetzner_reset_storage_box_password` | Resets the Storage Box password | ⚠️ |
+| `hetzner_update_storage_box_access_settings` | Configures SSH / Samba / WebDAV / ZFS / external access | |
+
+#### Folders
+| Tool | What it does |
+|------|--------------|
+| `hetzner_list_storage_box_folders` | Lists folders inside a Storage Box |
+
+#### Subaccounts
+| Tool | What it does | Destructive? |
+|------|--------------|:---:|
+| `hetzner_list_storage_box_subaccounts` | Lists subaccounts (auto-paginates) | |
+| `hetzner_create_storage_box_subaccount` | Creates a subaccount with scoped access | |
+| `hetzner_update_storage_box_subaccount` | Updates subaccount settings | |
+| `hetzner_delete_storage_box_subaccount` | Deletes a subaccount | ⚠️ |
+
+#### Snapshots
+| Tool | What it does | Destructive? |
+|------|--------------|:---:|
+| `hetzner_list_storage_box_snapshots` | Lists snapshots (auto-paginates) | |
+| `hetzner_create_storage_box_snapshot` | Triggers an on-demand snapshot | |
+| `hetzner_delete_storage_box_snapshot` | Deletes a snapshot | ⚠️ |
+| `hetzner_rollback_storage_box_snapshot` | Rolls back to a snapshot — overwrites current data | ⚠️ |
+| `hetzner_enable_storage_box_snapshot_plan` | Enables automatic scheduled snapshots | |
+| `hetzner_disable_storage_box_snapshot_plan` | Disables automatic scheduled snapshots | |
 
 ---
 
@@ -397,7 +405,7 @@ Claude: [Lists Falkenstein, Nuremberg, Helsinki, etc.]
 ```
 You: "Add my SSH key called 'my-laptop'"
 Claude: "What's the public key content?"
-You: [Paste your ~/.ssh/id_rsa.pub content]
+You: [Paste your ~/.ssh/id_ed25519.pub content]
 Claude: "SSH key 'my-laptop' created with ID 12345"
 ```
 
@@ -416,7 +424,13 @@ Claude: "Server 'my-app' created!
 ssh root@123.45.67.89
 ```
 
-### 5. When done, delete the server (to stop charges)
+### 5. Check RAM usage
+```
+You: "How much RAM is my-app using?"
+Claude: [SSHes in, runs free -m, returns used/total/available]
+```
+
+### 6. When done, delete the server (to stop charges)
 ```
 You: "Delete server my-app"
 Claude: "Are you sure? This is permanent."
@@ -429,8 +443,8 @@ Claude: "Server 67890 is being deleted."
 ## Troubleshooting
 
 ### "HETZNER_API_TOKEN environment variable is required"
-You haven't configured the token in your Claude Code settings. Make sure:
-1. The token is in `~/.claude/settings.json`
+You haven't configured the token. Make sure:
+1. The token is in your Claude Code MCP config
 2. You've restarted Claude Code
 
 ### "Error: Authentication failed"
@@ -440,7 +454,16 @@ Your API token is invalid. Generate a new one in the Hetzner console.
 Your token doesn't have write permissions. Generate a new token with "Read & Write".
 
 ### "Error: Resource not found"
-The server/SSH key ID doesn't exist. Use the list commands to see what's available.
+The server/SSH key/volume ID doesn't exist. Use the list commands to see what's available.
+
+### Storage Box tools return "401 Unauthorized"
+You need a **unified token** from `console.hetzner.com/account/security/api-tokens`, not a Cloud project token. Set it as `HETZNER_API_TOKEN_UNIFIED`.
+
+### `hetzner_get_server_ram` returns a connection error
+The tool SSHes directly into the server. Make sure:
+1. The server is running and reachable
+2. SSH is open on the configured port (default: 22)
+3. The configured `ssh_user` has access (default: `root`)
 
 ---
 
@@ -448,13 +471,19 @@ The server/SSH key ID doesn't exist. Use the list commands to see what's availab
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Build (compile TypeScript to JavaScript)
-npm run build
+bun run build
 
 # Development mode (auto-rebuild on changes)
-npm run dev
+bun run dev
+
+# Run tests
+bun run test
+
+# Lint
+bun run lint
 ```
 
 ---
