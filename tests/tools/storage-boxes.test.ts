@@ -1501,6 +1501,51 @@ describe("H-1 security: username / snapshot_id path injection prevention", () =>
   });
 });
 
+// H-1b security: rollback snapshot injection prevention
+describe("H-1b security: rollback snapshot injection prevention", () => {
+  it("rollback_snapshot: rejects path traversal (../evil)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot: "../evil", response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("rollback_snapshot: rejects forward slash (a/b)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot: "a/b", response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("rollback_snapshot: rejects percent-encoded slash (%2f)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot: "evil%2fsubpath", response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("rollback_snapshot: accepts numeric snapshot (12345)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot: "12345", response_format: "markdown" }).success
+    ).toBe(true);
+  });
+
+  it("rollback_snapshot: accepts named snapshot (snapshot-2024-01-01)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot: "snapshot-2024-01-01", response_format: "markdown" }).success
+    ).toBe(true);
+  });
+
+  it("rollback_snapshot: accepts ISO-style snapshot (2024-01-15T12:00:00+01:00)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_rollback_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot: "2024-01-15T12:00:00+01:00", response_format: "markdown" }).success
+    ).toBe(true);
+  });
+});
+
 // M-2 security: password complexity policy enforcement
 describe("M-2 security: password complexity policy enforcement", () => {
   const validCreateBase = {

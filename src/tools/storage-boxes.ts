@@ -1244,7 +1244,10 @@ this tool uses the replacement \`snapshot\` field.)`,
         snapshot: z
           .string()
           .min(1)
-          .refine((s) => s.trim().length > 0, { message: "snapshot must not be blank" })
+          .regex(
+            /^[A-Za-z0-9._:+@-]+$/,
+            "snapshot must contain only safe characters (alphanumeric, . _ : + @ -)"
+          )
           .describe("Snapshot name or numeric ID (as string) to roll back to"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
