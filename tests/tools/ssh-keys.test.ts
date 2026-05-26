@@ -170,3 +170,18 @@ describe("hetzner_list_ssh_keys — edge cases", () => {
     expect(result.success).toBe(true);
   });
 });
+
+// L-2b security: HTML escaping in non-label fields of formatSSHKey
+describe("L-2b security: HTML escaping in formatSSHKey non-label fields", () => {
+  const XSS = '<script>alert(1)</script>';
+  const SAFE = '&lt;script&gt;alert(1)&lt;/script&gt;';
+
+  it("hetzner_get_ssh_key escapes key.name in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_ssh_key")!.handler;
+    mockedRequest.mockResolvedValueOnce({ ssh_key: { ...baseKey, name: XSS } });
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+});

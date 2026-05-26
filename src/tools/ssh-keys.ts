@@ -22,14 +22,23 @@ const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} page
 
 const paginatedFetch = createPaginatedFetch(makeApiRequest);
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 function formatSSHKey(key: HetznerSSHKey): string {
   const lines = [
-    `## ${key.name} (ID: ${key.id})`,
+    `## ${escapeHtml(key.name)} (ID: ${key.id})`,
     `- **Fingerprint**: ${key.fingerprint}`,
     `- **Created**: ${new Date(key.created).toLocaleString()}`
   ];
   if (Object.keys(key.labels).length > 0) {
-    lines.push(`- **Labels**: ${Object.entries(key.labels).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    lines.push(`- **Labels**: ${Object.entries(key.labels).map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(v)}`).join(", ")}`);
   }
   return lines.join("\n");
 }

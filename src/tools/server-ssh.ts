@@ -124,6 +124,12 @@ Prerequisites:
 - The SSH private key must be available in the system SSH agent or ~/.ssh
   (the tool calls the system \`ssh\` binary directly).
 
+⚠️ Host key trust: uses StrictHostKeyChecking=accept-new. For hosts not yet
+in ~/.ssh/known_hosts, the host key is automatically trusted and recorded. For
+hosts already in known_hosts, a key mismatch is still rejected with an error.
+For higher security, pre-register expected host fingerprints in known_hosts
+and set StrictHostKeyChecking=yes in your SSH config.
+
 Returns used / total / available in MiB and overall usage %, plus swap state.`,
       inputSchema: z.object({
         id: z.number().int().positive()
@@ -159,6 +165,12 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
         if (!ipv4) {
           return {
             content: [{ type: "text", text: "Error: Server has no public IPv4 address." }],
+            isError: true
+          };
+        }
+        if (!/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/.test(ipv4)) {
+          return {
+            content: [{ type: "text", text: `Error: Resolved IPv4 address has unexpected format: ${ipv4}` }],
             isError: true
           };
         }

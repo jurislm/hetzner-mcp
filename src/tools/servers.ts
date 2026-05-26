@@ -23,27 +23,36 @@ const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} page
 
 const paginatedFetch = createPaginatedFetch(makeApiRequest);
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 function formatServer(server: HetznerServer): string {
   const ipv4 = server.public_net.ipv4?.ip || "N/A";
   const ipv6 = server.public_net.ipv6?.ip || "N/A";
 
   const lines = [
-    `## ${server.name} (ID: ${server.id})`,
+    `## ${escapeHtml(server.name)} (ID: ${server.id})`,
     `- **Status**: ${server.status}`,
     `- **IPv4**: ${ipv4}`,
     `- **IPv6**: ${ipv6}`,
     `- **Type**: ${server.server_type.name} (${server.server_type.cores} cores, ${server.server_type.memory}GB RAM, ${server.server_type.disk}GB disk)`,
-    `- **Location**: ${server.datacenter.location.city}, ${server.datacenter.location.country} (${server.datacenter.name})`
+    `- **Location**: ${escapeHtml(server.datacenter.location.city)}, ${escapeHtml(server.datacenter.location.country)} (${escapeHtml(server.datacenter.name)})`
   ];
 
   if (server.image) {
-    lines.push(`- **Image**: ${server.image.name} (${server.image.os_flavor} ${server.image.os_version})`);
+    lines.push(`- **Image**: ${escapeHtml(server.image.name)} (${server.image.os_flavor} ${server.image.os_version})`);
   }
 
   lines.push(`- **Created**: ${new Date(server.created).toLocaleString()}`);
 
   if (Object.keys(server.labels).length > 0) {
-    lines.push(`- **Labels**: ${Object.entries(server.labels).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    lines.push(`- **Labels**: ${Object.entries(server.labels).map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(v)}`).join(", ")}`);
   }
 
   return lines.join("\n");
@@ -211,9 +220,9 @@ Returns the new server details including IP address and root password (if no SSH
         name: z.string().min(1).max(255)
           .regex(/^[a-zA-Z0-9-]+$/, "Name can only contain letters, digits, and hyphens")
           .describe("Server name"),
-        server_type: z.string().min(1).describe("Server type (e.g., 'cx22', 'cpx11')"),
-        image: z.string().min(1).describe("OS image name (e.g., 'ubuntu-24.04')"),
-        location: z.string().optional().describe("Datacenter location (e.g., 'fsn1', 'nbg1')"),
+        server_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "server_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Server type (e.g., 'cx22', 'cpx11')"),
+        image: z.string().min(1).regex(/^[a-zA-Z0-9._-]+$/, "image must be a valid slug (alphanumeric, dots, hyphens)").describe("OS image name or numeric ID (e.g., 'ubuntu-24.04', 'Ubuntu-Hardened-2024', '12345')"),
+        location: z.string().regex(/^[a-z0-9-]+$/, "location must be a valid slug (lowercase alphanumeric and hyphens)").optional().describe("Datacenter location (e.g., 'fsn1', 'nbg1')"),
         ssh_keys: z.array(z.union([z.string(), z.number()])).optional()
           .describe("SSH key names or IDs for access"),
         labels: z.record(z.string(), z.string()).optional().describe("Labels as key-value pairs"),

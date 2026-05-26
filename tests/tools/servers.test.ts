@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 vi.mock("../../src/api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api.js")>();
@@ -55,7 +55,11 @@ type ToolHandler = (params: unknown) => Promise<{ content: { type: string; text:
 interface CapturedTool {
   name: string;
   handler: ToolHandler;
-  opts: { annotations?: Record<string, unknown> };
+  opts: {
+    annotations?: Record<string, unknown>;
+    description?: string;
+    inputSchema?: z.ZodType<unknown>;
+  };
 }
 
 function captureRegisteredTools(): CapturedTool[] {
@@ -176,5 +180,83 @@ describe("hetzner_list_servers — edge cases", () => {
   it("ListServersResponseSchema parses without error", () => {
     const result = ListServersResponseSchema.safeParse({ servers: [baseServer], meta: { pagination: { next_page: null } } });
     expect(result.success).toBe(true);
+  });
+});
+
+// L-3 security: POST body field character validation
+describe("L-3 security: create_server body field character validation", () => {
+  it("rejects server_type with special characters", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx; rm -rf", image: "ubuntu-24.04" }).success
+    ).toBe(false);
+  });
+
+  it("rejects image with special characters", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu<script>" }).success
+    ).toBe(false);
+  });
+
+  it("accepts valid server_type slug (cx53)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx53", image: "ubuntu-24.04" }).success
+    ).toBe(true);
+  });
+
+  it("accepts valid image slug (ubuntu-24.04)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu-24.04" }).success
+    ).toBe(true);
+  });
+
+  it("accepts uppercase custom image name (Ubuntu-Hardened-2024)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "Ubuntu-Hardened-2024" }).success
+    ).toBe(true);
+  });
+
+  it("accepts numeric image ID string (12345)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "12345" }).success
+    ).toBe(true);
+  });
+
+  it("still rejects image with injection characters (ubuntu<script>)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_server")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "test", server_type: "cx22", image: "ubuntu<script>" }).success
+    ).toBe(false);
+  });
+});
+
+// L-2b security: HTML escaping in non-label fields of formatServer
+describe("L-2b security: HTML escaping in formatServer non-label fields", () => {
+  const XSS = '<script>alert(1)</script>';
+  const SAFE = '&lt;script&gt;alert(1)&lt;/script&gt;';
+
+  it("hetzner_get_server escapes server.name in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_server")!.handler;
+    mockedRequest.mockResolvedValueOnce({ server: { ...baseServer, name: XSS } });
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+
+  it("hetzner_get_server escapes server.image.name in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_server")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      server: { ...baseServer, image: { ...baseServer.image, name: '<evil-image>' } }
+    });
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain('<evil-image>');
+    expect(result.content[0].text).toContain('&lt;evil-image&gt;');
   });
 });

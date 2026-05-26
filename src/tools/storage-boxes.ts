@@ -48,6 +48,15 @@ const STORAGE_BOX_PROTOCOL_KEYS = [
 // fails typecheck instead of silently filtering to false at runtime.
 const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly BooleanKeys<HetznerStorageBoxSubaccount>[];
 
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 // Exported for unit testing.
 export function formatBytes(bytes: number): string {
   const gib = bytes / (1024 ** 3);
@@ -69,12 +78,12 @@ export function formatStorageBox(box: HetznerStorageBox): string {
     ? Math.round((box.stats.size_data / totalSize) * 100)
     : 0;
   return [
-    `## ${box.name} (ID: ${box.id})`,
-    `- **Username**: ${box.username}`,
+    `## ${escapeHtml(box.name)} (ID: ${box.id})`,
+    `- **Username**: ${escapeHtml(box.username)}`,
     `- **Status**: ${box.status}`,
     `- **Type**: ${box.storage_box_type.name}`,
     `- **Location**: ${box.location.name}`,
-    `- **Server**: ${box.server ?? "—"}`,
+    `- **Server**: ${box.server ? escapeHtml(box.server) : "—"}`,
     `- **Storage**: ${formatBytes(box.stats.size_data)} used / ${formatBytes(totalSize)} total (~${usagePercent}% used)`,
     `- **Snapshots**: ${formatBytes(box.stats.size_snapshots)}`,
     `- **Protocols**: ${protocols}`,
@@ -90,15 +99,15 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
     .join(", ") || "none";
 
   const lines: string[] = [
-    `## ${sub.username}`,
-    `- **Home directory**: ${sub.home_directory}`,
+    `## ${escapeHtml(sub.username)}`,
+    `- **Home directory**: ${escapeHtml(sub.home_directory)}`,
     `- **Protocols**: ${protocols}`,
     `- **External reachability**: ${sub.external_reachability ? "yes" : "no"}`,
     `- **Read-only**: ${sub.readonly ? "yes" : "no"}`
   ];
 
   if (sub.comment) {
-    lines.push(`- **Comment**: ${sub.comment}`);
+    lines.push(`- **Comment**: ${escapeHtml(sub.comment)}`);
   }
 
   return lines.join("\n");
@@ -107,11 +116,11 @@ export function formatSubaccount(sub: HetznerStorageBoxSubaccount): string {
 // Exported for unit testing.
 export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
   const lines: string[] = [
-    `## ${snap.name} (ID: ${snap.id})`,
+    `## ${escapeHtml(snap.name)} (ID: ${snap.id})`,
     `- **Created**: ${snap.created.slice(0, 10)}`
   ];
   if (snap.description) {
-    lines.push(`- **Description**: ${snap.description}`);
+    lines.push(`- **Description**: ${escapeHtml(snap.description)}`);
   }
   if (snap.stats?.size !== undefined) {
     lines.push(`- **Size**: ${formatBytes(snap.stats.size)}`);
@@ -121,7 +130,7 @@ export function formatSnapshot(snap: HetznerStorageBoxSnapshot): string {
   }
   if (snap.labels && Object.keys(snap.labels).length > 0) {
     const labelStr = Object.entries(snap.labels)
-      .map(([k, v]) => `${k}=${v}`)
+      .map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(v)}`)
       .join(", ");
     lines.push(`- **Labels**: ${labelStr}`);
   }
@@ -560,10 +569,17 @@ Required parameters:
 
 Returns the new Storage Box and an action tracking provisioning.`,
       inputSchema: z.object({
-        storage_box_type: z.string().min(1).describe("Storage box type name (e.g., 'bx11', 'bx20')"),
-        location: z.string().min(1).describe("Location name (e.g., 'fsn1', 'nbg1', 'hel1')"),
+        storage_box_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "storage_box_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Storage box type name (e.g., 'bx11', 'bx20')"),
+        location: z.string().min(1).regex(/^[a-z0-9-]+$/, "location must be a valid slug (lowercase alphanumeric and hyphens)").describe("Location name (e.g., 'fsn1', 'nbg1', 'hel1')"),
         name: z.string().min(1).describe("Name for the storage box"),
-        password: z.string().min(12).describe("Initial password (min 12 chars, must include uppercase, lowercase, number, special char)"),
+        password: z
+          .string()
+          .min(12)
+          .regex(
+            /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9])/,
+            "Password must include uppercase, lowercase, number, and special character"
+          )
+          .describe("Initial password (min 12 chars, must include uppercase, lowercase, number, special char)"),
         labels: z.record(z.string(), z.string()).optional().describe("Optional key-value labels"),
         ssh_enabled: z.boolean().optional().describe("Enable SSH access"),
         samba_enabled: z.boolean().optional().describe("Enable Samba access"),
@@ -599,7 +615,7 @@ Returns the new Storage Box and an action tracking provisioning.`,
         const data = await makeStorageBoxApiRequest("/storage_boxes", CreateStorageBoxResponseSchema, "POST", body);
 
         if (params.response_format === ResponseFormat.JSON) {
-          return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+          return { content: [{ type: "text", text: JSON.stringify({ storage_box: data.storage_box, action: data.action }, null, 2) }] };
         }
 
         const lines = [
@@ -818,7 +834,10 @@ Use access settings to configure which protocols the subaccount can use.`,
       description: `Update access settings or comment for a Storage Box subaccount.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        username: z.string().min(1).describe("The subaccount username to update"),
+        username: z
+          .string()
+          .regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .describe("The subaccount username to update"),
         comment: z.string().optional().describe("New comment"),
         labels: z.record(z.string(), z.string()).optional().describe("Labels (replaces existing)"),
         ssh_enabled: z.boolean().optional().describe("Allow SSH access"),
@@ -881,7 +900,10 @@ Use access settings to configure which protocols the subaccount can use.`,
       description: `Delete a subaccount from a Storage Box.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        username: z.string().min(1).describe("The subaccount username to delete")
+        username: z
+          .string()
+          .regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .describe("The subaccount username to delete")
       }).strict(),
       annotations: {
         readOnlyHint: false,
@@ -919,7 +941,14 @@ Use access settings to configure which protocols the subaccount can use.`,
 ⚠️ DESTRUCTIVE: The snapshot will be permanently deleted and cannot be recovered.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        snapshot_id: z.string().min(1).describe("Snapshot name or numeric ID (as string)")
+        snapshot_id: z
+          .string()
+          .min(1)
+          .regex(
+            /^[A-Za-z0-9._:+@-]+$/,
+            "snapshot_id must contain only safe characters (alphanumeric, . _ : + @ -)"
+          )
+          .describe("Snapshot name or numeric ID (as string)")
       }).strict(),
       annotations: {
         readOnlyHint: false,
@@ -997,7 +1026,7 @@ When delete protection is enabled, the Storage Box cannot be deleted until prote
 ⚠️ WARNING: Downgrading to a smaller plan may cause data loss if current usage exceeds the new plan's capacity.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        storage_box_type: z.string().min(1).describe("Target plan name (e.g., 'bx11', 'bx20', 'bx60')")
+        storage_box_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "storage_box_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Target plan name (e.g., 'bx11', 'bx20', 'bx60')")
       }).strict(),
       annotations: {
         readOnlyHint: false,
@@ -1036,7 +1065,14 @@ When delete protection is enabled, the Storage Box cannot be deleted until prote
 Password policy: minimum 12 characters, must include uppercase, lowercase, number, and special character.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        password: z.string().min(12).describe("New password (min 12 chars, must include uppercase, lowercase, number, special char)")
+        password: z
+          .string()
+          .min(12)
+          .regex(
+            /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9])/,
+            "Password must include uppercase, lowercase, number, and special character"
+          )
+          .describe("New password (min 12 chars, must include uppercase, lowercase, number, special char)")
       }).strict(),
       annotations: {
         readOnlyHint: false,
@@ -1217,7 +1253,10 @@ this tool uses the replacement \`snapshot\` field.)`,
         snapshot: z
           .string()
           .min(1)
-          .refine((s) => s.trim().length > 0, { message: "snapshot must not be blank" })
+          .regex(
+            /^[A-Za-z0-9._:+@-]+$/,
+            "snapshot must contain only safe characters (alphanumeric, . _ : + @ -)"
+          )
           .describe("Snapshot name or numeric ID (as string) to roll back to"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
