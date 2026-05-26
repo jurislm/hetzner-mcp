@@ -16,6 +16,7 @@ import {
   VolumeActionResponseSchema,
   HetznerVolume
 } from "../types.js";
+import { escapeHtml } from "../utils.js";
 const CLOUD_DEFAULT_PER_PAGE = 25;
 const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
 
@@ -23,19 +24,19 @@ const paginatedFetch = createPaginatedFetch(makeApiRequest);
 
 function formatVolume(vol: HetznerVolume): string {
   const lines = [
-    `## ${vol.name} (ID: ${vol.id})`,
-    `- **Status**: ${vol.status}`,
+    `## ${escapeHtml(vol.name)} (ID: ${vol.id})`,
+    `- **Status**: ${escapeHtml(vol.status)}`,
     `- **Size**: ${vol.size} GB`,
-    `- **Location**: ${vol.location.city}, ${vol.location.country} (${vol.location.name})`,
-    `- **Mount path**: ${vol.linux_device ?? "N/A"}`,
+    `- **Location**: ${escapeHtml(vol.location.city)}, ${escapeHtml(vol.location.country)} (${escapeHtml(vol.location.name)})`,
+    `- **Mount path**: ${vol.linux_device ? escapeHtml(vol.linux_device) : "N/A"}`,
     `- **Attached server**: ${vol.server !== null ? `ID ${vol.server}` : "not attached"}`,
-    `- **Format**: ${vol.format ?? "unknown"}`,
+    `- **Format**: ${vol.format ? escapeHtml(vol.format) : "unknown"}`,
     `- **Delete protected**: ${vol.protection.delete ? "yes" : "no"}`,
     `- **Created**: ${new Date(vol.created).toLocaleString()}`
   ];
 
   if (Object.keys(vol.labels).length > 0) {
-    lines.push(`- **Labels**: ${Object.entries(vol.labels).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+    lines.push(`- **Labels**: ${Object.entries(vol.labels).map(([k, v]) => `${escapeHtml(k)}=${escapeHtml(v)}`).join(", ")}`);
   }
 
   return lines.join("\n");
@@ -62,8 +63,8 @@ Returns volumes with their:
       inputSchema: z.object({
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 25."),
-        label_selector: z.string().optional().describe("Filter by label (e.g., 'env=production')"),
-        status: z.string().optional().describe("Filter by volume status (known values: 'available', 'creating')"),
+        label_selector: z.string().max(256).optional().describe("Filter by label (e.g., 'env=production')"),
+        status: z.string().max(64).optional().describe("Filter by volume status (known values: 'available', 'creating')"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {

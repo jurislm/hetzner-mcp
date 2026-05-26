@@ -5,17 +5,25 @@ vi.mock("../../src/api.js", async (importOriginal) => {
   return { ...actual, makeApiRequest: vi.fn() };
 });
 
-import { parseFreeOutput, registerServerSshTools, runSsh } from "../../src/tools/server-ssh.js";
+vi.mock("child_process");
+
+import { parseFreeOutput, registerServerSshTools, runSsh, runSshKeyScan } from "../../src/tools/server-ssh.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { makeApiRequest } from "../../src/api.js";
+import { execFile } from "child_process";
+
+const mockExecFile = vi.mocked(execFile);
 
 const mockedRequest = vi.mocked(makeApiRequest);
 // Injected via dependency injection — no module mocking required.
 const mockSsh = vi.fn<typeof runSsh>();
+const mockKeyScan = vi.fn<typeof runSshKeyScan>();
 
 beforeEach(() => {
   mockedRequest.mockReset();
   mockSsh.mockReset();
+  mockKeyScan.mockReset();
+  mockExecFile.mockReset();
 });
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -61,20 +69,92 @@ const serverResponse = {
 
 type ToolHandler = (params: unknown) => Promise<{ content: { type: string; text: string }[]; isError?: boolean }>;
 
-function captureHandler(): ToolHandler {
+function captureHandler(keyScanRunner?: typeof runSshKeyScan): ToolHandler {
   let captured: ToolHandler | undefined;
   const fakeServer = {
     registerTool: vi.fn((_name: string, _opts: unknown, handler: ToolHandler) => {
       captured = handler;
     })
   };
-  // Inject mockSsh so the handler never opens a real SSH connection.
-  registerServerSshTools(fakeServer as unknown as McpServer, mockSsh);
+  // Inject mockSsh (and optional keyScanRunner) so the handler never touches real SSH.
+  registerServerSshTools(fakeServer as unknown as McpServer, mockSsh, keyScanRunner ?? mockKeyScan);
   if (!captured) {
     throw new Error("registerServerSshTools did not call registerTool — handler not captured");
   }
   return captured;
 }
+
+function captureToolOpts(): { description: string; inputSchema: { shape: Record<string, unknown> } } {
+  let opts: { description: string; inputSchema: { shape: Record<string, unknown> } } | undefined;
+  const fakeServer = {
+    registerTool: vi.fn((_name: string, o: typeof opts) => { opts = o; })
+  };
+  registerServerSshTools(fakeServer as unknown as McpServer, mockSsh, mockKeyScan);
+  if (!opts) throw new Error("opts not captured");
+  return opts;
+}
+
+// ── runSshKeyScan — direct unit tests (execFile mocked) ───────────────────────
+
+type ExecCallback = (err: Error | null, stdout: string, stderr: string) => void;
+type FakeChildProcess = { stdin: { write: ReturnType<typeof vi.fn>; end: ReturnType<typeof vi.fn> } | null };
+
+function stubExecFileCalls(...calls: Array<{ err: Error | null; stdout: string; stderr: string }>): FakeChildProcess {
+  const mockStdin = { write: vi.fn(), end: vi.fn() };
+  let callIndex = 0;
+  mockExecFile.mockImplementation((_file, _args, _opts, cb) => {
+    const call = calls[callIndex++] ?? { err: null, stdout: "", stderr: "" };
+    (cb as ExecCallback)(call.err, call.stdout, call.stderr);
+    return { stdin: mockStdin } as ReturnType<typeof execFile>;
+  });
+  return { stdin: mockStdin };
+}
+
+describe("runSshKeyScan — direct unit tests", () => {
+  it("rejects when ssh-keyscan returns empty stdout", async () => {
+    stubExecFileCalls({ err: null, stdout: "", stderr: "Connection refused" });
+    await expect(runSshKeyScan("1.2.3.4", 22)).rejects.toThrow("ssh-keyscan failed");
+  });
+
+  it("rejects when ssh-keyscan exits non-zero even with partial stdout (Finding #3)", async () => {
+    const scanError = new Error("ssh-keyscan: connection timeout");
+    stubExecFileCalls({ err: scanError, stdout: "partial-key-data\n", stderr: "" });
+    await expect(runSshKeyScan("1.2.3.4", 22)).rejects.toThrow("connection timeout");
+  });
+
+  it("returns array of all fingerprints preserving base64 padding (Findings #1 and #2)", async () => {
+    const keyscanOut = "1.2.3.4 ecdsa-sha2-nistp256 ECDSA\n1.2.3.4 ssh-ed25519 ED25519";
+    // Second fingerprint has trailing '=' (base64 padding)
+    const keygenOut = "256 SHA256:AbCdEf+abc root@host (ECDSA)\n256 SHA256:XyZ123/q8= user@host (ED25519)";
+    stubExecFileCalls(
+      { err: null, stdout: keyscanOut, stderr: "" },
+      { err: null, stdout: keygenOut, stderr: "" }
+    );
+
+    const result = await runSshKeyScan("1.2.3.4", 22);
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toContain("SHA256:AbCdEf+abc");
+    expect(result).toContain("SHA256:XyZ123/q8=");  // '=' must be preserved
+    expect(result).toHaveLength(2);
+  });
+
+  it("rejects when ssh-keygen produces no recognisable fingerprint", async () => {
+    stubExecFileCalls(
+      { err: null, stdout: "1.2.3.4 ssh-ed25519 KEY", stderr: "" },
+      { err: null, stdout: "garbled output without SHA256", stderr: "" }
+    );
+    await expect(runSshKeyScan("1.2.3.4", 22)).rejects.toThrow("Could not parse fingerprint");
+  });
+
+  it("rejects when ssh-keygen exits non-zero", async () => {
+    const keygenError = new Error("permission denied");
+    stubExecFileCalls(
+      { err: null, stdout: "1.2.3.4 ssh-ed25519 KEY", stderr: "" },
+      { err: keygenError, stdout: "", stderr: "" }
+    );
+    await expect(runSshKeyScan("1.2.3.4", 22)).rejects.toThrow("permission denied");
+  });
+});
 
 // ── parseFreeOutput — pure unit tests ─────────────────────────────────────────
 
@@ -301,5 +381,126 @@ describe("hetzner_get_server_ram — error handling", () => {
 
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toMatch(/IPv4|unexpected format/i);
+  });
+});
+
+// ── [H-2] expected_fingerprint — TOFU MITM prevention ───────────────────────
+
+const FAKE_FP = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+const WRONG_FP = "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+
+describe("hetzner_get_server_ram — expected_fingerprint", () => {
+  it("tool description warns about TOFU risk and mentions expected_fingerprint", () => {
+    const opts = captureToolOpts();
+    expect(opts.description).toMatch(/TOFU|accept-new/i);
+    expect(opts.description).toContain("expected_fingerprint");
+  });
+
+  it("input schema accepts expected_fingerprint as optional string", () => {
+    const opts = captureToolOpts();
+    expect(opts.inputSchema.shape).toHaveProperty("expected_fingerprint");
+  });
+
+  it("skips fingerprint check when expected_fingerprint is not provided", async () => {
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
+
+    await captureHandler()({ id: 1, response_format: "markdown" });
+
+    expect(mockKeyScan).not.toHaveBeenCalled();
+    expect(mockSsh).toHaveBeenCalled();
+  });
+
+  it("calls keyScanRunner with resolved IP and port when expected_fingerprint is provided", async () => {
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    mockKeyScan.mockResolvedValueOnce([FAKE_FP]);
+    mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
+
+    await captureHandler()({
+      id: 1,
+      expected_fingerprint: FAKE_FP,
+      ssh_port: 22,
+      response_format: "markdown"
+    });
+
+    expect(mockKeyScan).toHaveBeenCalledWith("91.99.173.93", 22);
+  });
+
+  it("proceeds normally when fingerprint matches", async () => {
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    mockKeyScan.mockResolvedValueOnce([FAKE_FP]);
+    mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
+
+    const result = await captureHandler()({
+      id: 1,
+      expected_fingerprint: FAKE_FP,
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockSsh).toHaveBeenCalled();
+  });
+
+  it("returns isError and does NOT call sshRunner when fingerprint mismatches", async () => {
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    mockKeyScan.mockResolvedValueOnce([FAKE_FP]);
+
+    const result = await captureHandler()({
+      id: 1,
+      expected_fingerprint: WRONG_FP,
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/fingerprint mismatch/i);
+    expect(mockSsh).not.toHaveBeenCalled();
+  });
+
+  it("returns isError when keyScan fails", async () => {
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    mockKeyScan.mockRejectedValueOnce(new Error("ssh-keyscan: connection refused"));
+
+    const result = await captureHandler()({
+      id: 1,
+      expected_fingerprint: FAKE_FP,
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/fingerprint|keyscan/i);
+    expect(mockSsh).not.toHaveBeenCalled();
+  });
+
+  it("proceeds when expected_fingerprint matches second key in multi-key response (Finding #1)", async () => {
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    // keyScanRunner now returns string[] — expected is the SECOND fingerprint
+    const multiKeyMock = vi.fn<typeof runSshKeyScan>().mockResolvedValueOnce([WRONG_FP, FAKE_FP]);
+    mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
+
+    const result = await captureHandler(multiKeyMock)({
+      id: 1,
+      expected_fingerprint: FAKE_FP,
+      response_format: "markdown"
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(mockSsh).toHaveBeenCalled();
+  });
+
+  it("returns isError when padded fingerprint (SHA256:abc==) is expected but extraction strips padding (Finding #2)", async () => {
+    const PADDED_FP = "SHA256:AbCdEfGhIjKlMnOpQrStUvWxYzABCDEFGHIJK==";
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    const paddedMock = vi.fn<typeof runSshKeyScan>().mockResolvedValueOnce([PADDED_FP]);
+    mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
+
+    const result = await captureHandler(paddedMock)({
+      id: 1,
+      expected_fingerprint: PADDED_FP,
+      response_format: "markdown"
+    });
+
+    // Should succeed — padded fingerprint in response must match padded expected
+    expect(result.isError).toBeUndefined();
+    expect(mockSsh).toHaveBeenCalled();
   });
 });

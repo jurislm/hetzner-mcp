@@ -16,21 +16,13 @@ import {
   ServerActionResponseSchema,
   HetznerServer
 } from "../types.js";
+import { escapeHtml } from "../utils.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const CLOUD_DEFAULT_PER_PAGE = 25;
 const TRUNCATION_NOTE = `> ⚠️ Truncated at ${PAGINATION_HARD_CAP_PAGES} pages — supply explicit \`page\` to fetch more.`;
 
 const paginatedFetch = createPaginatedFetch(makeApiRequest);
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-}
 
 function formatServer(server: HetznerServer): string {
   const ipv4 = server.public_net.ipv4?.ip || "N/A";
@@ -79,7 +71,7 @@ Returns servers with their:
       inputSchema: z.object({
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 25."),
-        label_selector: z.string().optional()
+        label_selector: z.string().max(256).optional()
           .describe("Filter by label (e.g., 'env=production')"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
@@ -215,7 +207,8 @@ Optional parameters:
 - ssh_keys: List of SSH key names or IDs for server access
 - labels: Key-value labels for organization
 
-Returns the new server details including IP address and root password (if no SSH keys specified).`,
+Returns the new server details including IP address and root password (if no SSH keys specified).
+When using JSON output format, the response includes root_password in plaintext — avoid logging the full JSON output to unprotected storage.`,
       inputSchema: z.object({
         name: z.string().min(1).max(255)
           .regex(/^[a-zA-Z0-9-]+$/, "Name can only contain letters, digits, and hyphens")

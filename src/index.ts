@@ -16,6 +16,7 @@ import { registerStorageBoxTools } from "./tools/storage-boxes.js";
 import { registerVolumeTools } from "./tools/volumes.js";
 import { registerMetricsTools } from "./tools/metrics.js";
 import { registerServerSshTools } from "./tools/server-ssh.js";
+import { formatStartupError } from "./utils.js";
 
 // Create MCP server instance
 const server = new McpServer({
@@ -54,7 +55,7 @@ async function main(): Promise<void> {
   console.error("Hetzner MCP server running via stdio");
 }
 
-main().catch((error) => {
-  console.error("Server error:", error);
+main().catch((error: unknown) => {
+  console.error("Server error:", formatStartupError(error));
   process.exit(1);
 });

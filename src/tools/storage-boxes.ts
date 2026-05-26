@@ -30,6 +30,7 @@ import {
   HetznerAction,
   BooleanKeys
 } from "../types.js";
+import { escapeHtml } from "../utils.js";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const DEFAULT_PER_PAGE = 50;
@@ -47,15 +48,6 @@ const STORAGE_BOX_PROTOCOL_KEYS = [
 // C-3: constrain to keys whose value type is `boolean` so a typo like "name"
 // fails typecheck instead of silently filtering to false at runtime.
 const SUBACCOUNT_PROTOCOLS = ["ssh", "webdav", "samba"] as const satisfies readonly BooleanKeys<HetznerStorageBoxSubaccount>[];
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-}
 
 // Exported for unit testing.
 export function formatBytes(bytes: number): string {
@@ -175,8 +167,8 @@ Returns Storage Boxes with their:
       inputSchema: z.object({
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 50."),
-        label_selector: z.string().optional().describe("Filter by label selector (e.g. 'env=prod')"),
-        name: z.string().optional().describe("Filter by exact name"),
+        label_selector: z.string().max(256).optional().describe("Filter by label selector (e.g. 'env=prod')"),
+        name: z.string().max(255).optional().describe("Filter by exact name"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -313,7 +305,7 @@ Returns subaccounts with their:
         id: z.number().int().positive().describe("The Storage Box ID"),
         page: z.number().int().positive().optional().describe("Page number (1-based). When set, fetches a single page only."),
         per_page: z.number().int().positive().max(50).optional().describe("Items per page (max 50). Default 50."),
-        username: z.string().optional().describe("Filter by exact subaccount username"),
+        username: z.string().max(255).regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, hyphens, or underscores").optional().describe("Filter by exact subaccount username"),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -567,6 +559,8 @@ Required parameters:
 - name: Name for the storage box.
 - password: Initial password (min 12 chars, must include uppercase, lowercase, number, and special character).
 
+⚠️ Security: the password parameter is transmitted as plaintext in the MCP protocol. Ensure MCP session logs are access-controlled and do not persist to unprotected storage.
+
 Returns the new Storage Box and an action tracking provisioning.`,
       inputSchema: z.object({
         storage_box_type: z.string().min(1).regex(/^[a-z0-9-]+$/, "storage_box_type must be a valid slug (lowercase alphanumeric and hyphens)").describe("Storage box type name (e.g., 'bx11', 'bx20')"),
@@ -752,7 +746,7 @@ This action cannot be undone.`,
         const lines = [
           `# Folders in Storage Box ${params.id}`,
           "",
-          ...data.folders.map((f) => `- \`${f}\``)
+          ...data.folders.map((f) => `- \`${escapeHtml(f)}\``)
         ];
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error) {
@@ -1062,7 +1056,9 @@ When delete protection is enabled, the Storage Box cannot be deleted until prote
       title: "Reset Storage Box Password",
       description: `Reset the password for a Storage Box.
 
-Password policy: minimum 12 characters, must include uppercase, lowercase, number, and special character.`,
+Password policy: minimum 12 characters, must include uppercase, lowercase, number, and special character.
+
+⚠️ Security: the password parameter is transmitted as plaintext in the MCP protocol. Ensure MCP session logs are access-controlled and do not persist to unprotected storage.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
         password: z
