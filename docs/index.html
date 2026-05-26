@@ -30,13 +30,35 @@
     a { color: var(--blue); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
-    /* ── Layout ── */
     .container { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Lang switcher ── */
+    .lang-bar {
+      display: flex;
+      justify-content: flex-end;
+      gap: 4px;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--border);
+      max-width: 860px;
+      margin: 0 auto;
+    }
+    .lang-btn {
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      padding: 3px 9px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .lang-btn:hover { color: var(--text); border-color: var(--border); }
+    .lang-btn.active { color: var(--text); border-color: var(--blue); }
 
     /* ── Hero ── */
     header {
       border-bottom: 1px solid var(--border);
-      padding: 64px 0 48px;
+      padding: 56px 0 44px;
       text-align: center;
     }
 
@@ -52,27 +74,12 @@
       color: var(--muted);
       margin-bottom: 24px;
     }
-    .badge .dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      display: inline-block;
-    }
+    .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); display: inline-block; }
 
-    h1 {
-      font-size: clamp(28px, 5vw, 42px);
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      margin-bottom: 16px;
-    }
+    h1 { font-size: clamp(28px, 5vw, 42px); font-weight: 700; letter-spacing: -0.5px; margin-bottom: 16px; }
     h1 span { color: var(--accent); }
 
-    .tagline {
-      font-size: 18px;
-      color: var(--muted);
-      max-width: 560px;
-      margin: 0 auto 32px;
-    }
+    .tagline { font-size: 18px; color: var(--muted); max-width: 560px; margin: 0 auto 32px; }
 
     .install-box {
       display: inline-flex;
@@ -92,13 +99,7 @@
     .install-box .copy-icon { color: var(--muted); font-size: 14px; user-select: none; }
     .install-box.copied .copy-icon { color: var(--green); }
 
-    .hero-links {
-      margin-top: 24px;
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
+    .hero-links { margin-top: 24px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
     .btn {
       display: inline-flex;
       align-items: center;
@@ -127,29 +128,15 @@
       overflow: hidden;
       margin: 48px 0;
     }
-    .stat {
-      background: var(--surface);
-      padding: 20px;
-      text-align: center;
-    }
+    .stat { background: var(--surface); padding: 20px; text-align: center; }
     .stat .num { font-size: 28px; font-weight: 700; color: var(--text); }
     .stat .label { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
     /* ── Tool categories ── */
     .section { margin: 48px 0; }
-    h2 {
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 20px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid var(--border);
-    }
+    h2 { font-size: 20px; font-weight: 600; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
 
-    .categories {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 12px;
-    }
+    .categories { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
     .category {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -158,28 +145,11 @@
       transition: border-color 0.15s;
     }
     .category:hover { border-color: var(--muted); }
-    .category-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 8px;
-    }
+    .category-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
     .category-name { font-weight: 600; font-size: 14px; }
-    .category-count {
-      background: #21262d;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 1px 8px;
-      font-size: 12px;
-      color: var(--muted);
-    }
+    .category-count { background: #21262d; border: 1px solid var(--border); border-radius: 20px; padding: 1px 8px; font-size: 12px; color: var(--muted); }
     .category-desc { font-size: 13px; color: var(--muted); line-height: 1.5; }
-    .tool-list {
-      margin-top: 10px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px;
-    }
+    .tool-list { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 4px; }
     .tool-tag {
       font-family: "SFMono-Regular", Consolas, monospace;
       font-size: 11px;
@@ -192,24 +162,12 @@
     .destructive { color: var(--accent); }
 
     /* ── Config snippet ── */
-    .code-block {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      overflow: auto;
-    }
-    .code-block pre {
-      padding: 20px;
-      font-family: "SFMono-Regular", Consolas, monospace;
-      font-size: 13px;
-      line-height: 1.6;
-    }
+    .code-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: auto; }
+    .code-block pre { padding: 20px; font-family: "SFMono-Regular", Consolas, monospace; font-size: 13px; line-height: 1.6; }
     .code-block .key { color: #79c0ff; }
-    .code-block .val { color: #a5d6ff; }
     .code-block .str { color: #a5d6ff; }
     .code-block .comment { color: var(--muted); }
 
-    /* ── Token note ── */
     .callout {
       background: #161b22;
       border: 1px solid #30363d;
@@ -223,44 +181,38 @@
     .callout strong { color: var(--text); }
 
     /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 32px 0;
-      text-align: center;
-      font-size: 13px;
-      color: var(--muted);
-      margin-top: 64px;
-    }
+    footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; font-size: 13px; color: var(--muted); margin-top: 64px; }
     footer a { color: var(--muted); }
     footer a:hover { color: var(--text); }
   </style>
 </head>
 <body>
 
+<!-- Language switcher -->
+<div class="lang-bar" style="max-width:100%; border-bottom:1px solid var(--border);">
+  <div class="container" style="display:flex; justify-content:flex-end; gap:4px; padding:10px 24px;">
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('zh')">繁中</button>
+    <button class="lang-btn" onclick="setLang('ja')">日本語</button>
+    <button class="lang-btn" onclick="setLang('ko')">한국어</button>
+  </div>
+</div>
+
 <header>
   <div class="container">
-    <div class="badge">
-      <span class="dot"></span>
-      v1.3.3 on npm
-    </div>
+    <div class="badge"><span class="dot"></span> v1.3.3 on npm</div>
     <h1>Hetzner <span>MCP</span> Server</h1>
-    <p class="tagline">Give Claude Code 40 tools to manage your Hetzner Cloud infrastructure — from your chat window.</p>
+    <p class="tagline" data-i18n="tagline">Give Claude Code 40 tools to manage your Hetzner Cloud infrastructure — from your chat window.</p>
 
     <div class="install-box" onclick="copyInstall(this)" title="Click to copy">
       <code>npm install -g @jurislm/hetzner-mcp</code>
-      <span class="copy-icon">⎘ Copy</span>
+      <span class="copy-icon" data-i18n="copy">⎘ Copy</span>
     </div>
 
     <div class="hero-links">
-      <a class="btn btn-primary" href="https://github.com/jurislm/hetzner-mcp">
-        ★ GitHub
-      </a>
-      <a class="btn" href="https://www.npmjs.com/package/@jurislm/hetzner-mcp">
-        npm
-      </a>
-      <a class="btn" href="https://github.com/jurislm/hetzner-mcp#readme">
-        Docs
-      </a>
+      <a class="btn btn-primary" href="https://github.com/jurislm/hetzner-mcp">★ GitHub</a>
+      <a class="btn" href="https://www.npmjs.com/package/@jurislm/hetzner-mcp">npm</a>
+      <a class="btn" href="https://github.com/jurislm/hetzner-mcp#readme" data-i18n="docs">Docs</a>
     </div>
   </div>
 </header>
@@ -268,25 +220,23 @@
 <main>
   <div class="container">
 
-    <!-- Stats -->
     <div class="stats">
-      <div class="stat"><div class="num">40</div><div class="label">Tools</div></div>
-      <div class="stat"><div class="num">7</div><div class="label">Categories</div></div>
-      <div class="stat"><div class="num">2</div><div class="label">API Endpoints</div></div>
-      <div class="stat"><div class="num">stdio</div><div class="label">Transport</div></div>
+      <div class="stat"><div class="num">40</div><div class="label" data-i18n="stat-tools">Tools</div></div>
+      <div class="stat"><div class="num">7</div><div class="label" data-i18n="stat-categories">Categories</div></div>
+      <div class="stat"><div class="num">2</div><div class="label" data-i18n="stat-endpoints">API Endpoints</div></div>
+      <div class="stat"><div class="num">stdio</div><div class="label" data-i18n="stat-transport">Transport</div></div>
     </div>
 
-    <!-- Tool categories -->
     <div class="section">
-      <h2>Tools</h2>
+      <h2 data-i18n="section-tools">Tools</h2>
       <div class="categories">
 
         <div class="category">
           <div class="category-header">
-            <span class="category-name">Servers</span>
+            <span class="category-name" data-i18n="cat-servers">Servers</span>
             <span class="category-count">7</span>
           </div>
-          <p class="category-desc">Create, power on/off/reboot, and delete cloud servers.</p>
+          <p class="category-desc" data-i18n="cat-servers-desc">Create, power on/off/reboot, and delete cloud servers.</p>
           <div class="tool-list">
             <span class="tool-tag">list_servers</span>
             <span class="tool-tag">get_server</span>
@@ -300,10 +250,10 @@
 
         <div class="category">
           <div class="category-header">
-            <span class="category-name">SSH Keys</span>
+            <span class="category-name" data-i18n="cat-ssh">SSH Keys</span>
             <span class="category-count">4</span>
           </div>
-          <p class="category-desc">Manage SSH public keys for server authentication.</p>
+          <p class="category-desc" data-i18n="cat-ssh-desc">Manage SSH public keys for server authentication.</p>
           <div class="tool-list">
             <span class="tool-tag">list_ssh_keys</span>
             <span class="tool-tag">get_ssh_key</span>
@@ -314,10 +264,10 @@
 
         <div class="category">
           <div class="category-header">
-            <span class="category-name">Cloud Volumes</span>
+            <span class="category-name" data-i18n="cat-volumes">Cloud Volumes</span>
             <span class="category-count">4</span>
           </div>
-          <p class="category-desc">Attach and detach persistent block storage volumes.</p>
+          <p class="category-desc" data-i18n="cat-volumes-desc">Attach and detach persistent block storage volumes.</p>
           <div class="tool-list">
             <span class="tool-tag">list_volumes</span>
             <span class="tool-tag">get_volume</span>
@@ -328,10 +278,10 @@
 
         <div class="category">
           <div class="category-header">
-            <span class="category-name">Metrics &amp; RAM</span>
+            <span class="category-name" data-i18n="cat-metrics">Metrics &amp; RAM</span>
             <span class="category-count">2</span>
           </div>
-          <p class="category-desc">CPU, disk I/O, network metrics — and RAM via SSH (the Metrics API doesn't expose memory).</p>
+          <p class="category-desc" data-i18n="cat-metrics-desc">CPU, disk I/O, network metrics — and RAM via SSH (the Metrics API doesn't expose memory).</p>
           <div class="tool-list">
             <span class="tool-tag">get_server_metrics</span>
             <span class="tool-tag">get_server_ram</span>
@@ -340,10 +290,10 @@
 
         <div class="category">
           <div class="category-header">
-            <span class="category-name">Reference</span>
+            <span class="category-name" data-i18n="cat-reference">Reference</span>
             <span class="category-count">3</span>
           </div>
-          <p class="category-desc">Browse available server types, OS images, and datacenter locations.</p>
+          <p class="category-desc" data-i18n="cat-reference-desc">Browse available server types, OS images, and datacenter locations.</p>
           <div class="tool-list">
             <span class="tool-tag">list_server_types</span>
             <span class="tool-tag">list_images</span>
@@ -353,10 +303,10 @@
 
         <div class="category">
           <div class="category-header">
-            <span class="category-name">Storage Boxes</span>
+            <span class="category-name" data-i18n="cat-storage">Storage Boxes</span>
             <span class="category-count">20</span>
           </div>
-          <p class="category-desc">Full CRUD for Hetzner Storage Boxes — subaccounts, snapshots, access settings, and scheduled backup plans. Requires a unified API token.</p>
+          <p class="category-desc" data-i18n="cat-storage-desc">Full CRUD for Hetzner Storage Boxes — subaccounts, snapshots, access settings, and scheduled backup plans. Requires a unified API token.</p>
           <div class="tool-list">
             <span class="tool-tag">list / get / create</span>
             <span class="tool-tag">update / delete</span>
@@ -369,10 +319,9 @@
       </div>
     </div>
 
-    <!-- Config snippet -->
     <div class="section">
-      <h2>Quick Setup</h2>
-      <p style="color: var(--muted); font-size: 14px; margin-bottom: 16px;">Add to <code style="font-size:13px; color: var(--text);">~/.claude.json</code> (run <code style="font-size:13px; color: var(--text);">/mcp</code> in Claude Code to confirm the path):</p>
+      <h2 data-i18n="section-setup">Quick Setup</h2>
+      <p style="color:var(--muted);font-size:14px;margin-bottom:16px;" data-i18n="setup-hint">Add to <code style="font-size:13px;color:var(--text);">~/.claude.json</code> (run <code style="font-size:13px;color:var(--text);">/mcp</code> in Claude Code to confirm the path):</p>
       <div class="code-block">
         <pre>{
   <span class="key">"mcpServers"</span>: {
@@ -382,7 +331,7 @@
       <span class="key">"args"</span>: [<span class="str">"@jurislm/hetzner-mcp"</span>],
       <span class="key">"env"</span>: {
         <span class="key">"HETZNER_API_TOKEN"</span>: <span class="str">"your-api-token"</span>,
-        <span class="comment">// Storage Boxes only — unified token from console.hetzner.com</span>
+        <span class="comment" data-i18n="code-comment">// Storage Boxes only — unified token from console.hetzner.com</span>
         <span class="key">"HETZNER_API_TOKEN_UNIFIED"</span>: <span class="str">"your-unified-token"</span>
       }
     }
@@ -390,11 +339,12 @@
 }</pre>
       </div>
       <div class="callout">
-        <strong>Two token types:</strong> All tools except Storage Boxes use a Cloud project token from
-        <a href="https://console.hetzner.cloud" style="color: var(--blue);">console.hetzner.cloud</a>.
+        <strong data-i18n="callout-title">Two token types:</strong>
+        <span data-i18n="callout-body"> All tools except Storage Boxes use a Cloud project token from
+        <a href="https://console.hetzner.cloud">console.hetzner.cloud</a>.
         Storage Box tools use a unified token from
-        <a href="https://console.hetzner.com/account/security/api-tokens" style="color: var(--blue);">console.hetzner.com</a>.
-        A Cloud token on the unified API returns <code>401</code>.
+        <a href="https://console.hetzner.com/account/security/api-tokens">console.hetzner.com</a>.
+        A Cloud token on the unified API returns <code>401</code>.</span>
       </div>
     </div>
 
@@ -405,25 +355,157 @@
   <div class="container">
     <p>
       <a href="https://github.com/jurislm/hetzner-mcp">jurislm/hetzner-mcp</a>
-      &nbsp;·&nbsp;
-      MIT License
-      &nbsp;·&nbsp;
+      &nbsp;·&nbsp; MIT License &nbsp;·&nbsp;
       <a href="https://www.npmjs.com/package/@jurislm/hetzner-mcp">@jurislm/hetzner-mcp on npm</a>
     </p>
   </div>
 </footer>
 
 <script>
-  function copyInstall(el) {
-    navigator.clipboard.writeText('npm install -g @jurislm/hetzner-mcp').then(() => {
-      el.classList.add('copied');
-      el.querySelector('.copy-icon').textContent = '✓ Copied';
-      setTimeout(() => {
-        el.classList.remove('copied');
-        el.querySelector('.copy-icon').textContent = '⎘ Copy';
-      }, 2000);
-    });
+const TRANSLATIONS = {
+  en: {
+    tagline: "Give Claude Code 40 tools to manage your Hetzner Cloud infrastructure — from your chat window.",
+    copy: "⎘ Copy",
+    copied: "✓ Copied",
+    docs: "Docs",
+    "stat-tools": "Tools",
+    "stat-categories": "Categories",
+    "stat-endpoints": "API Endpoints",
+    "stat-transport": "Transport",
+    "section-tools": "Tools",
+    "cat-servers": "Servers",
+    "cat-servers-desc": "Create, power on/off/reboot, and delete cloud servers.",
+    "cat-ssh": "SSH Keys",
+    "cat-ssh-desc": "Manage SSH public keys for server authentication.",
+    "cat-volumes": "Cloud Volumes",
+    "cat-volumes-desc": "Attach and detach persistent block storage volumes.",
+    "cat-metrics": "Metrics & RAM",
+    "cat-metrics-desc": "CPU, disk I/O, network metrics — and RAM via SSH (the Metrics API doesn't expose memory).",
+    "cat-reference": "Reference",
+    "cat-reference-desc": "Browse available server types, OS images, and datacenter locations.",
+    "cat-storage": "Storage Boxes",
+    "cat-storage-desc": "Full CRUD for Hetzner Storage Boxes — subaccounts, snapshots, access settings, and scheduled backup plans. Requires a unified API token.",
+    "section-setup": "Quick Setup",
+    "setup-hint": 'Add to <code style="font-size:13px;color:var(--text);">~/.claude.json</code> (run <code style="font-size:13px;color:var(--text);">/mcp</code> in Claude Code to confirm the path):',
+    "code-comment": "// Storage Boxes only — unified token from console.hetzner.com",
+    "callout-title": "Two token types:",
+    "callout-body": ' All tools except Storage Boxes use a Cloud project token from <a href="https://console.hetzner.cloud">console.hetzner.cloud</a>. Storage Box tools use a unified token from <a href="https://console.hetzner.com/account/security/api-tokens">console.hetzner.com</a>. A Cloud token on the unified API returns <code>401</code>.',
+  },
+  zh: {
+    tagline: "讓 Claude Code 透過 40 個工具管理您的 Hetzner Cloud 基礎設施 — 直接在對話視窗中操作。",
+    copy: "⎘ 複製",
+    copied: "✓ 已複製",
+    docs: "文件",
+    "stat-tools": "工具",
+    "stat-categories": "分類",
+    "stat-endpoints": "API 端點",
+    "stat-transport": "傳輸協定",
+    "section-tools": "工具",
+    "cat-servers": "伺服器",
+    "cat-servers-desc": "建立、開關機、重新開機、刪除雲端伺服器。",
+    "cat-ssh": "SSH 金鑰",
+    "cat-ssh-desc": "管理用於伺服器認證的 SSH 公鑰。",
+    "cat-volumes": "雲端磁碟區",
+    "cat-volumes-desc": "掛載與卸載持久性區塊儲存磁碟區。",
+    "cat-metrics": "指標與記憶體",
+    "cat-metrics-desc": "CPU、磁碟 I/O、網路指標 — 以及透過 SSH 取得 RAM 使用量（Metrics API 不提供記憶體資料）。",
+    "cat-reference": "參考資料",
+    "cat-reference-desc": "瀏覽可用的伺服器規格、作業系統映像與資料中心位置。",
+    "cat-storage": "Storage Box",
+    "cat-storage-desc": "Hetzner Storage Box 完整 CRUD — 子帳號、快照、存取設定與自動備份排程。需要 Unified API Token。",
+    "section-setup": "快速設定",
+    "setup-hint": '加入 <code style="font-size:13px;color:var(--text);">~/.claude.json</code>（在 Claude Code 中執行 <code style="font-size:13px;color:var(--text);">/mcp</code> 確認路徑）：',
+    "code-comment": "// 僅 Storage Box 需要 — 從 console.hetzner.com 取得 Unified Token",
+    "callout-title": "兩種 Token 類型：",
+    "callout-body": ' Storage Box 以外的所有工具使用來自 <a href="https://console.hetzner.cloud">console.hetzner.cloud</a> 的 Cloud 專案 Token。Storage Box 工具需要來自 <a href="https://console.hetzner.com/account/security/api-tokens">console.hetzner.com</a> 的 Unified Token。Cloud Token 呼叫 Unified API 會回傳 <code>401</code>。',
+  },
+  ja: {
+    tagline: "チャットウィンドウから Claude Code で Hetzner Cloud インフラを管理する、40 のツール。",
+    copy: "⎘ コピー",
+    copied: "✓ コピー完了",
+    docs: "ドキュメント",
+    "stat-tools": "ツール",
+    "stat-categories": "カテゴリ",
+    "stat-endpoints": "API エンドポイント",
+    "stat-transport": "トランスポート",
+    "section-tools": "ツール",
+    "cat-servers": "サーバー",
+    "cat-servers-desc": "クラウドサーバーの作成、電源操作、再起動、削除。",
+    "cat-ssh": "SSH キー",
+    "cat-ssh-desc": "サーバー認証用 SSH 公開鍵の管理。",
+    "cat-volumes": "クラウドボリューム",
+    "cat-volumes-desc": "永続ブロックストレージのアタッチとデタッチ。",
+    "cat-metrics": "メトリクスと RAM",
+    "cat-metrics-desc": "CPU・ディスク I/O・ネットワークメトリクス — SSH 経由の RAM 使用量も取得可能（Metrics API はメモリを公開していないため）。",
+    "cat-reference": "リファレンス",
+    "cat-reference-desc": "利用可能なサーバータイプ、OS イメージ、データセンターの一覧。",
+    "cat-storage": "ストレージボックス",
+    "cat-storage-desc": "Hetzner Storage Box の完全な CRUD — サブアカウント、スナップショット、アクセス設定、自動バックアッププラン。Unified API トークンが必要。",
+    "section-setup": "クイックセットアップ",
+    "setup-hint": '<code style="font-size:13px;color:var(--text);">~/.claude.json</code> に追加してください（Claude Code で <code style="font-size:13px;color:var(--text);">/mcp</code> を実行してパスを確認）：',
+    "code-comment": "// Storage Box のみ — console.hetzner.com から取得した Unified トークン",
+    "callout-title": "2 種類のトークン：",
+    "callout-body": ' Storage Box 以外のすべてのツールは <a href="https://console.hetzner.cloud">console.hetzner.cloud</a> の Cloud プロジェクトトークンを使用します。Storage Box ツールは <a href="https://console.hetzner.com/account/security/api-tokens">console.hetzner.com</a> の Unified トークンが必要です。Unified API に Cloud トークンを使うと <code>401</code> が返ります。',
+  },
+  ko: {
+    tagline: "Claude Code로 Hetzner Cloud 인프라를 관리하는 40가지 도구 — 대화창에서 바로 사용하세요.",
+    copy: "⎘ 복사",
+    copied: "✓ 복사됨",
+    docs: "문서",
+    "stat-tools": "도구",
+    "stat-categories": "카테고리",
+    "stat-endpoints": "API 엔드포인트",
+    "stat-transport": "전송 방식",
+    "section-tools": "도구",
+    "cat-servers": "서버",
+    "cat-servers-desc": "클라우드 서버 생성, 전원 켜기/끄기, 재시작, 삭제.",
+    "cat-ssh": "SSH 키",
+    "cat-ssh-desc": "서버 인증용 SSH 공개 키 관리.",
+    "cat-volumes": "클라우드 볼륨",
+    "cat-volumes-desc": "영구 블록 스토리지 볼륨 연결 및 분리.",
+    "cat-metrics": "메트릭 및 RAM",
+    "cat-metrics-desc": "CPU, 디스크 I/O, 네트워크 메트릭 — SSH를 통한 RAM 사용량 조회 (Metrics API는 메모리를 제공하지 않음).",
+    "cat-reference": "참조",
+    "cat-reference-desc": "사용 가능한 서버 유형, OS 이미지, 데이터센터 위치 조회.",
+    "cat-storage": "스토리지 박스",
+    "cat-storage-desc": "Hetzner Storage Box 전체 CRUD — 서브계정, 스냅샷, 접근 설정, 자동 백업 플랜. Unified API 토큰 필요.",
+    "section-setup": "빠른 설정",
+    "setup-hint": '<code style="font-size:13px;color:var(--text);">~/.claude.json</code>에 추가하세요 (Claude Code에서 <code style="font-size:13px;color:var(--text);">/mcp</code> 실행으로 경로 확인):',
+    "code-comment": "// Storage Box 전용 — console.hetzner.com에서 발급한 Unified 토큰",
+    "callout-title": "두 가지 토큰 유형:",
+    "callout-body": ' Storage Box를 제외한 모든 도구는 <a href="https://console.hetzner.cloud">console.hetzner.cloud</a>의 Cloud 프로젝트 토큰을 사용합니다. Storage Box 도구는 <a href="https://console.hetzner.com/account/security/api-tokens">console.hetzner.com</a>의 Unified 토큰이 필요합니다. Unified API에 Cloud 토큰을 사용하면 <code>401</code>이 반환됩니다.',
   }
+};
+
+let currentLang = localStorage.getItem('lang') || 'en';
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem('lang', lang);
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.textContent.trim() === {en:'EN',zh:'繁中',ja:'日本語',ko:'한국어'}[lang]);
+  });
+  const t = TRANSLATIONS[lang];
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    if (t[key] !== undefined) el.innerHTML = t[key];
+  });
+  document.documentElement.lang = {en:'en',zh:'zh-Hant',ja:'ja',ko:'ko'}[lang];
+}
+
+function copyInstall(el) {
+  navigator.clipboard.writeText('npm install -g @jurislm/hetzner-mcp').then(() => {
+    const t = TRANSLATIONS[currentLang];
+    el.classList.add('copied');
+    el.querySelector('.copy-icon').textContent = t.copied || '✓ Copied';
+    setTimeout(() => {
+      el.classList.remove('copied');
+      el.querySelector('.copy-icon').innerHTML = t.copy || '⎘ Copy';
+    }, 2000);
+  });
+}
+
+setLang(currentLang);
 </script>
 
 </body>
