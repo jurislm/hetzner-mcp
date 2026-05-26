@@ -260,3 +260,37 @@ describe("L-2b security: HTML escaping in formatServer non-label fields", () => 
     expect(result.content[0].text).toContain('&lt;evil-image&gt;');
   });
 });
+
+// ── [M-1/M-4] filter parameter validation ─────────────────────────────────────
+
+describe("hetzner_list_servers — filter parameter validation", () => {
+  it("rejects label_selector longer than 256 characters", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_list_servers")!;
+    const longStr = "a".repeat(257);
+    expect(
+      (tool.opts.inputSchema as { safeParse: (v: unknown) => { success: boolean } })
+        .safeParse({ label_selector: longStr, response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("accepts label_selector of exactly 256 characters", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_list_servers")!;
+    const okStr = "a".repeat(256);
+    expect(
+      (tool.opts.inputSchema as { safeParse: (v: unknown) => { success: boolean } })
+        .safeParse({ label_selector: okStr, response_format: "markdown" }).success
+    ).toBe(true);
+  });
+});
+
+// ── [L-1] create_server — root_password plaintext warning ─────────────────────
+
+describe("hetzner_create_server — root_password warning", () => {
+  it("description warns that JSON mode returns root_password in plaintext", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_create_server")!;
+    expect(tool.opts.description).toMatch(/root_password|log|plaintext/i);
+  });
+});

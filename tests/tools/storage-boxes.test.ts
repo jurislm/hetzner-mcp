@@ -1727,3 +1727,69 @@ describe("L-2b security: HTML escaping in non-label fields", () => {
     expect(out).toContain('&lt;b&gt;desc&lt;/b&gt;');
   });
 });
+
+// ── [M-1/M-4] filter parameter validation ─────────────────────────────────────
+
+describe("filter parameter validation — M-1/M-4", () => {
+  it("hetzner_list_storage_boxes rejects label_selector > 256 chars", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_list_storage_boxes")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ label_selector: "a".repeat(257), response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("hetzner_list_storage_boxes rejects name > 255 chars", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_list_storage_boxes")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ name: "a".repeat(256), response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("hetzner_list_storage_box_subaccounts rejects filter username > 255 chars", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_list_storage_box_subaccounts")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "a".repeat(256), response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("hetzner_list_storage_box_subaccounts rejects filter username with special chars", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_list_storage_box_subaccounts")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "evil<script>", response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("hetzner_list_storage_box_subaccounts accepts valid filter username", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_list_storage_box_subaccounts")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "u123-sub1", response_format: "markdown" }).success
+    ).toBe(true);
+  });
+});
+
+// ── [M-2] escapeHtml in folder listing ────────────────────────────────────────
+
+describe("hetzner_list_storage_box_folders — escapeHtml", () => {
+  it("escapes folder names containing HTML characters in markdown output", async () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_list_storage_box_folders")!;
+    mockedRequest.mockResolvedValueOnce({ folders: ['<script>evil</script>', 'normal-folder'] });
+    const result = await tool.handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain('<script>evil</script>');
+    expect(result.content[0].text).toContain('&lt;script&gt;evil&lt;/script&gt;');
+    expect(result.content[0].text).toContain('normal-folder');
+  });
+});
+
+// ── [M-3] password tools — plaintext MCP warning ─────────────────────────────
+
+describe("password tools — MCP plaintext security warning", () => {
+  it("hetzner_create_storage_box description warns about MCP plaintext password", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
+    expect(tool.opts.description).toMatch(/MCP|plaintext|log/i);
+  });
+
+  it("hetzner_reset_storage_box_password description warns about MCP plaintext password", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    expect(tool.opts.description).toMatch(/MCP|plaintext|log/i);
+  });
+});

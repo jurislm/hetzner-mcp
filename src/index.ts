@@ -32,6 +32,14 @@ registerVolumeTools(server);
 registerMetricsTools(server);
 registerServerSshTools(server);
 
+/** Extracts a safe, credential-free string from an unknown thrown value. */
+export function formatStartupError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
 // Main function
 async function main(): Promise<void> {
   // Check for API token
@@ -54,7 +62,7 @@ async function main(): Promise<void> {
   console.error("Hetzner MCP server running via stdio");
 }
 
-main().catch((error) => {
-  console.error("Server error:", error);
+main().catch((error: unknown) => {
+  console.error("Server error:", formatStartupError(error));
   process.exit(1);
 });

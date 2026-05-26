@@ -330,3 +330,81 @@ describe("hetzner_detach_volume", () => {
     expect(result.isError).toBe(true);
   });
 });
+
+// ── [M-1/M-4] filter parameter validation ─────────────────────────────────────
+
+describe("hetzner_list_volumes — filter parameter validation", () => {
+  it("rejects label_selector longer than 256 characters", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_list_volumes")!;
+    const longStr = "a".repeat(257);
+    expect(
+      (tool.opts as { inputSchema?: { safeParse: (v: unknown) => { success: boolean } } })
+        .inputSchema?.safeParse({ label_selector: longStr, response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("rejects status longer than 64 characters", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_list_volumes")!;
+    expect(
+      (tool.opts as { inputSchema?: { safeParse: (v: unknown) => { success: boolean } } })
+        .inputSchema?.safeParse({ status: "a".repeat(65), response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("accepts valid label_selector and status", () => {
+    const tools = captureRegisteredTools();
+    const tool = tools.find((t) => t.name === "hetzner_list_volumes")!;
+    expect(
+      (tool.opts as { inputSchema?: { safeParse: (v: unknown) => { success: boolean } } })
+        .inputSchema?.safeParse({ label_selector: "env=prod", status: "available", response_format: "markdown" }).success
+    ).toBe(true);
+  });
+});
+
+// ── [M-2] escapeHtml in formatVolume ─────────────────────────────────────────
+
+const XSS = '<script>alert(1)</script>';
+const SAFE = '&lt;script&gt;alert(1)&lt;/script&gt;';
+
+describe("hetzner_list_volumes — escapeHtml in output", () => {
+  it("escapes vol.name containing HTML in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_volumes")!.handler;
+    mockedRequest.mockResolvedValueOnce({ volumes: [{ ...baseVolume, name: XSS }], meta: { pagination: { next_page: null } } });
+    const result = await handler({ response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+
+  it("escapes vol.location.city/country/name containing HTML in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_volumes")!.handler;
+    const badLoc = { ...baseVolume.location, city: XSS, country: "DE", name: "nbg1" };
+    mockedRequest.mockResolvedValueOnce({ volumes: [{ ...baseVolume, location: badLoc }], meta: { pagination: { next_page: null } } });
+    const result = await handler({ response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+
+  it("escapes label keys and values containing HTML in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_list_volumes")!.handler;
+    mockedRequest.mockResolvedValueOnce({ volumes: [{ ...baseVolume, labels: { [XSS]: "val" } }], meta: { pagination: { next_page: null } } });
+    const result = await handler({ response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+});
+
+describe("hetzner_get_volume — escapeHtml in output", () => {
+  it("escapes vol.name in markdown output for single volume", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_volume")!.handler;
+    mockedRequest.mockResolvedValueOnce({ volume: { ...baseVolume, name: XSS } });
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+});

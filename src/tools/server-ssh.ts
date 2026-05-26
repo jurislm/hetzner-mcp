@@ -4,6 +4,45 @@ import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import { ResponseFormat, ResponseFormatSchema, GetServerResponseSchema } from "../types.js";
 
+/**
+ * Resolves the SHA256 fingerprint of a host's SSH key via ssh-keyscan + ssh-keygen.
+ * Exported so tests can inject a mock via the keyScanRunner DI parameter.
+ */
+export function runSshKeyScan(host: string, port: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    // Step 1: fetch raw host key entries
+    execFile(
+      "ssh-keyscan",
+      ["-p", String(port), "-T", "10", host],
+      { timeout: 15_000 },
+      (scanErr, scanOut, scanStderr) => {
+        const rawKey = scanOut.trim();
+        if (!rawKey) {
+          reject(new Error(`ssh-keyscan failed: ${scanStderr.trim() || "no output"}`));
+          return;
+        }
+        // Step 2: compute fingerprint from the raw key via ssh-keygen -l
+        const proc = execFile(
+          "ssh-keygen",
+          ["-l", "-E", "sha256", "-f", "/dev/stdin"],
+          { timeout: 10_000 },
+          (keygenErr, keygenOut) => {
+            if (keygenErr) { reject(keygenErr); return; }
+            const match = keygenOut.match(/SHA256:[A-Za-z0-9+/]+/);
+            if (!match) {
+              reject(new Error(`Could not parse fingerprint from: ${keygenOut.trim()}`));
+              return;
+            }
+            resolve(match[0]);
+          }
+        );
+        proc.stdin?.write(rawKey + "\n");
+        proc.stdin?.end();
+      }
+    );
+  });
+}
+
 export interface RamStats {
   total: number;
   used: number;
@@ -104,11 +143,11 @@ export function runSsh(
   });
 }
 
-// The sshRunner parameter lets tests inject a mock without fighting ESM binding.
-// Production callers omit it — the real runSsh is used by default.
+// sshRunner / keyScanRunner let tests inject mocks without fighting ESM binding.
 export function registerServerSshTools(
   server: McpServer,
-  sshRunner: typeof runSsh = runSsh
+  sshRunner: typeof runSsh = runSsh,
+  keyScanRunner: typeof runSshKeyScan = runSshKeyScan
 ): void {
   server.registerTool(
     "hetzner_get_server_ram",
@@ -124,11 +163,14 @@ Prerequisites:
 - The SSH private key must be available in the system SSH agent or ~/.ssh
   (the tool calls the system \`ssh\` binary directly).
 
-⚠️ Host key trust: uses StrictHostKeyChecking=accept-new. For hosts not yet
-in ~/.ssh/known_hosts, the host key is automatically trusted and recorded. For
-hosts already in known_hosts, a key mismatch is still rejected with an error.
-For higher security, pre-register expected host fingerprints in known_hosts
-and set StrictHostKeyChecking=yes in your SSH config.
+⚠️ TOFU risk: uses StrictHostKeyChecking=accept-new. On the first connection to
+a host, any key is automatically trusted (Trust-On-First-Use). An active MITM
+attack on the first connection would go undetected. To prevent this, supply the
+expected_fingerprint parameter (SHA256 format, e.g. "SHA256:abc123…"). When
+provided, the host key fingerprint is verified via ssh-keyscan before connecting
+and the connection is aborted if it does not match. For the highest security,
+pre-register fingerprints in known_hosts and set StrictHostKeyChecking=yes in
+your SSH config.
 
 Returns used / total / available in MiB and overall usage %, plus swap state.`,
       inputSchema: z.object({
@@ -140,6 +182,10 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
           .describe("SSH username (default: 'root')"),
         ssh_port: z.number().int().positive().max(65535).default(22)
           .describe("SSH port (default: 22)"),
+        expected_fingerprint: z.string()
+          .regex(/^SHA256:[A-Za-z0-9+/]+=*$/, "expected_fingerprint must be in SHA256:base64 format")
+          .optional()
+          .describe("Expected SSH host key fingerprint (e.g. 'SHA256:abc123…'). When provided, the host key is verified via ssh-keyscan before connecting. Strongly recommended to prevent TOFU MITM attacks."),
         response_format: ResponseFormatSchema.describe("Output format: 'markdown' or 'json'")
       }).strict(),
       annotations: {
@@ -175,7 +221,26 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
           };
         }
 
-        // Step 2: SSH and run free -m
+        // Step 2: verify host fingerprint if caller supplied one
+        if (params.expected_fingerprint) {
+          let actualFp: string;
+          try {
+            actualFp = await keyScanRunner(ipv4, sshPort);
+          } catch (scanErr) {
+            return {
+              content: [{ type: "text", text: `Error: fingerprint check failed — could not run ssh-keyscan: ${scanErr instanceof Error ? scanErr.message : String(scanErr)}` }],
+              isError: true
+            };
+          }
+          if (actualFp !== params.expected_fingerprint) {
+            return {
+              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${actualFp}` }],
+              isError: true
+            };
+          }
+        }
+
+        // Step 3: SSH and run free -m
         const stdout = await sshRunner(ipv4, sshPort, sshUser, "free -m");
         const { ram, swap } = parseFreeOutput(stdout);
 
@@ -214,6 +279,7 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
         }
 
         lines.push("");
+        // sshUser matches /^[a-zA-Z0-9._-]+$/, ipv4 matches IPv4 regex, sshPort is a validated integer — interpolation is safe.
         lines.push(`*Source: \`free -m\` via ${sshUser}@${ipv4}:${sshPort}*`);
 
         return {

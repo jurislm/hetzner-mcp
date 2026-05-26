@@ -283,9 +283,11 @@ export function createPaginatedFetch(requestFn: PaginatedRequestFn) {
   };
 }
 
-// I-5: Test-only reset hook for clearing cached clients between tests.
-// Throws unless NODE_ENV === "test" — catches both explicit "production" and the
-// common MCP production case where NODE_ENV is simply not set.
+/**
+ * @internal
+ * Test-only reset hook for clearing cached singleton clients between test runs.
+ * Throws in any non-test environment — do NOT call from production code.
+ */
 export function __resetClientsForTesting(): void {
   if (process.env.NODE_ENV !== "test") {
     throw new Error("__resetClientsForTesting must not be called in production");
