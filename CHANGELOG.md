@@ -1,5 +1,76 @@
 # Changelog
 
+## [1.3.3](https://github.com/jurislm/hetzner-mcp/compare/v1.3.2...v1.3.3) (2026-05-26)
+
+
+### Bug Fixes
+
+* **security:** post-review hardening — HTML escaping, IPv4 octet range, image regex + README rewrite ([#34](https://github.com/jurislm/hetzner-mcp/issues/34)) ([50fea57](https://github.com/jurislm/hetzner-mcp/commit/50fea57f3234070021399e0973c8c231471816bc))
+
+## [1.3.2](https://github.com/jurislm/hetzner-mcp/compare/v1.3.1...v1.3.2) (2026-05-26)
+
+
+### Bug Fixes
+
+* **security:** resolve H-1/H-2/M-1/M-2/M-3 — path injection, CVE deps, password policy, SSH trust ([#32](https://github.com/jurislm/hetzner-mcp/issues/32)) ([87b6327](https://github.com/jurislm/hetzner-mcp/commit/87b6327c2b62df623c66819160a2bd82f82c5df0))
+
+## [1.3.1](https://github.com/jurislm/hetzner-mcp/compare/v1.3.0...v1.3.1) (2026-05-15)
+
+
+### Refactoring
+
+* remove 24 unused type aliases from types.ts ([f35025c](https://github.com/jurislm/hetzner-mcp/commit/f35025c90b81933ab028cd59dd22197067277660))
+* remove 24 unused type aliases from types.ts ([fd7f89f](https://github.com/jurislm/hetzner-mcp/commit/fd7f89f93b5e3c04e3beea2eaa304b73307db0cf))
+
+## [1.3.0](https://github.com/jurislm/hetzner-mcp/compare/v1.2.1...v1.3.0) (2026-05-15)
+
+
+### Features
+
+* add Cloud Volume tools (list, get, attach, detach) ([#25](https://github.com/jurislm/hetzner-mcp/issues/25)) ([6262c35](https://github.com/jurislm/hetzner-mcp/commit/6262c3599a6ae03173861d1481d4ea9320bc77ec))
+* add Cloud Volume tools and Server Metrics tool ([4b8088f](https://github.com/jurislm/hetzner-mcp/commit/4b8088fdad8c6999f26945b9fcf87edd063810f4))
+* add Cloud Volume tools and Server Metrics tool ([#28](https://github.com/jurislm/hetzner-mcp/issues/28)) ([4b8088f](https://github.com/jurislm/hetzner-mcp/commit/4b8088fdad8c6999f26945b9fcf87edd063810f4))
+* add hetzner_get_server_metrics tool ([#26](https://github.com/jurislm/hetzner-mcp/issues/26)) ([440c435](https://github.com/jurislm/hetzner-mcp/commit/440c435434305b1242e1300090c8dece7d16cdf7))
+* add hetzner_get_server_ram tool via SSH ([#27](https://github.com/jurislm/hetzner-mcp/issues/27)) ([6dfcd25](https://github.com/jurislm/hetzner-mcp/commit/6dfcd25a9a7ca0cf750c2f5a6c036e9238a3c67f))
+
+
+### Bug Fixes
+
+* address CodeRabbit/Copilot review feedback on metrics and server-ssh ([e75fd56](https://github.com/jurislm/hetzner-mcp/commit/e75fd5621cd3174f941f875ab8b1d5c7fbdab124))
+* address PR [#28](https://github.com/jurislm/hetzner-mcp/issues/28) review feedback ([8b5e261](https://github.com/jurislm/hetzner-mcp/commit/8b5e261aefa0e211a41ca681775ec2f7af6513a5))
+* guard ssh_user against option injection (HIGH security) ([8986af0](https://github.com/jurislm/hetzner-mcp/commit/8986af0f36c5b74c1afe5b8dd4324129e4379912))
+* import shared ResponseFormatSchema in volumes.ts ([8e1f6c8](https://github.com/jurislm/hetzner-mcp/commit/8e1f6c8bd8f2c23855f3f224248635d330ad56c4))
+
+## [1.2.1](https://github.com/jurislm/hetzner-mcp/compare/v1.2.0...v1.2.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* add percentage usage to storage box markdown output ([55135ad](https://github.com/jurislm/hetzner-mcp/commit/55135adc55b34c6bbd8fb9854ce612361aa271d1))
+* add percentage usage to storage box markdown output ([#22](https://github.com/jurislm/hetzner-mcp/issues/22)) ([2935774](https://github.com/jurislm/hetzner-mcp/commit/2935774ec63147a0096bce8d63bb13b09af05174))
+* guard usagePercent against division by zero ([c5bcff3](https://github.com/jurislm/hetzner-mcp/commit/c5bcff36cdfff40542a603828acc68d6b38c3042))
+
+## [1.2.0](https://github.com/jurislm/hetzner-mcp/compare/v1.1.1...v1.2.0) (2026-05-05)
+
+
+### Features
+
+* add pagination for servers/ssh-keys and filters for storage boxes ([b6854d8](https://github.com/jurislm/hetzner-mcp/commit/b6854d8e7a95df3a4c72c3a64316e0961e0a784b))
+* add pagination for servers/ssh-keys and filters for storage boxes ([31bc9de](https://github.com/jurislm/hetzner-mcp/commit/31bc9de650468a37d7223e73629cfb29dbfa4588))
+* implement 14 missing Storage Box API endpoints ([76eee1b](https://github.com/jurislm/hetzner-mcp/commit/76eee1b12d4b39813b26e80a565b66086c57ca8e))
+* implement 14 missing Storage Box API endpoints ([#12](https://github.com/jurislm/hetzner-mcp/issues/12)) ([6a56f9a](https://github.com/jurislm/hetzner-mcp/commit/6a56f9a0504ce8d60edf77d52d001af73af4761e))
+
+
+### Bug Fixes
+
+* make storage_box_type.size required per official API spec ([3dd51e4](https://github.com/jurislm/hetzner-mcp/commit/3dd51e48dcf99851fdfccab7b729bb82a0c3e3a6))
+* use storage_box_type.size for total capacity in formatStorageBox (closes [#16](https://github.com/jurislm/hetzner-mcp/issues/16)) ([7568cac](https://github.com/jurislm/hetzner-mcp/commit/7568cac9b5bccf38e374a0670de3d671dc8e3a1c))
+
+
+### Documentation
+
+* add Hetzner unified API reference with implementation coverage ([081224c](https://github.com/jurislm/hetzner-mcp/commit/081224c6b88edfe23363f0bbaa6df0b9930a49cf))
+
 ## [1.1.1](https://github.com/jurislm/hetzner-mcp/compare/v1.1.0...v1.1.1) (2026-05-05)
 
 
