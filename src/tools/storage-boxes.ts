@@ -563,7 +563,14 @@ Returns the new Storage Box and an action tracking provisioning.`,
         storage_box_type: z.string().min(1).describe("Storage box type name (e.g., 'bx11', 'bx20')"),
         location: z.string().min(1).describe("Location name (e.g., 'fsn1', 'nbg1', 'hel1')"),
         name: z.string().min(1).describe("Name for the storage box"),
-        password: z.string().min(12).describe("Initial password (min 12 chars, must include uppercase, lowercase, number, special char)"),
+        password: z
+          .string()
+          .min(12)
+          .regex(
+            /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9])/,
+            "Password must include uppercase, lowercase, number, and special character"
+          )
+          .describe("Initial password (min 12 chars, must include uppercase, lowercase, number, special char)"),
         labels: z.record(z.string(), z.string()).optional().describe("Optional key-value labels"),
         ssh_enabled: z.boolean().optional().describe("Enable SSH access"),
         samba_enabled: z.boolean().optional().describe("Enable Samba access"),
@@ -1045,7 +1052,14 @@ When delete protection is enabled, the Storage Box cannot be deleted until prote
 Password policy: minimum 12 characters, must include uppercase, lowercase, number, and special character.`,
       inputSchema: z.object({
         id: z.number().int().positive().describe("The Storage Box ID"),
-        password: z.string().min(12).describe("New password (min 12 chars, must include uppercase, lowercase, number, special char)")
+        password: z
+          .string()
+          .min(12)
+          .regex(
+            /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9])/,
+            "Password must include uppercase, lowercase, number, and special character"
+          )
+          .describe("New password (min 12 chars, must include uppercase, lowercase, number, special char)")
       }).strict(),
       annotations: {
         readOnlyHint: false,
