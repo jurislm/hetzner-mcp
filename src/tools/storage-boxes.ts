@@ -935,9 +935,9 @@ Use access settings to configure which protocols the subaccount can use.`,
         snapshot_id: z
           .string()
           .min(1)
-          .refine(
-            (s) => !s.includes("/") && !s.includes("\\") && !s.includes(".."),
-            "snapshot_id must not contain path separators or traversal sequences"
+          .regex(
+            /^[A-Za-z0-9._:+@-]+$/,
+            "snapshot_id must contain only safe characters (alphanumeric, . _ : + @ -)"
           )
           .describe("Snapshot name or numeric ID (as string)")
       }).strict(),

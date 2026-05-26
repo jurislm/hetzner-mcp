@@ -406,7 +406,7 @@ interface CapturedTool {
   opts: {
     annotations?: Record<string, unknown>;
     description?: string;
-    inputSchema?: z.ZodTypeAny;
+    inputSchema?: z.ZodType<unknown>;
   };
 }
 
@@ -1462,6 +1462,20 @@ describe("H-1 security: username / snapshot_id path injection prevention", () =>
     const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
     expect(
       tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "a/b" }).success
+    ).toBe(false);
+  });
+
+  it("delete_snapshot: rejects percent-encoded slash (%2f traversal)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "evil%2fsubpath" }).success
+    ).toBe(false);
+  });
+
+  it("delete_snapshot: rejects percent-encoded backslash (%5c traversal)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "..%5c..%5cadmin" }).success
     ).toBe(false);
   });
 
