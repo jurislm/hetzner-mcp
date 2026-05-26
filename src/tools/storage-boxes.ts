@@ -934,7 +934,11 @@ Use access settings to configure which protocols the subaccount can use.`,
         id: z.number().int().positive().describe("The Storage Box ID"),
         snapshot_id: z
           .string()
-          .regex(/^[a-zA-Z0-9._-]+$/, "snapshot_id must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .min(1)
+          .refine(
+            (s) => !s.includes("/") && !s.includes("\\") && !s.includes(".."),
+            "snapshot_id must not contain path separators or traversal sequences"
+          )
           .describe("Snapshot name or numeric ID (as string)")
       }).strict(),
       annotations: {

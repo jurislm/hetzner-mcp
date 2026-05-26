@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 
 vi.mock("../../src/api.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/api.js")>();
@@ -403,7 +403,11 @@ type ToolHandler = (params: unknown) => Promise<{ content: { type: string; text:
 interface CapturedTool {
   name: string;
   handler: ToolHandler;
-  opts: { annotations?: Record<string, unknown>; description?: string };
+  opts: {
+    annotations?: Record<string, unknown>;
+    description?: string;
+    inputSchema?: z.ZodTypeAny;
+  };
 }
 
 function captureRegisteredTools(): CapturedTool[] {
@@ -1395,103 +1399,96 @@ describe("hetzner_disable_storage_box_snapshot_plan", () => {
 
 // H-1 security: path injection prevention in URL path parameters
 describe("H-1 security: username / snapshot_id path injection prevention", () => {
-  type SchemaLike = { safeParse: (v: unknown) => { success: boolean } };
-  type ToolWithSchema = { name: string; opts: { inputSchema: SchemaLike } };
-
-  function captureWithSchema(): ToolWithSchema[] {
-    return captureRegisteredTools() as unknown as ToolWithSchema[];
-  }
-
   // hetzner_update_storage_box_subaccount — username
   it("update_subaccount: rejects username with path traversal (../evil)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "../evil", response_format: "markdown" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "../evil", response_format: "markdown" }).success
     ).toBe(false);
   });
 
   it("update_subaccount: rejects username with forward slash (a/b)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "a/b", response_format: "markdown" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "a/b", response_format: "markdown" }).success
     ).toBe(false);
   });
 
   it("update_subaccount: accepts valid username (u123-sub1)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "u123-sub1", response_format: "markdown" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "u123-sub1", response_format: "markdown" }).success
     ).toBe(true);
   });
 
   it("update_subaccount: accepts valid username with dot (u123.sub1)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "u123.sub1", response_format: "markdown" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "u123.sub1", response_format: "markdown" }).success
     ).toBe(true);
   });
 
   // hetzner_delete_storage_box_subaccount — username
   it("delete_subaccount: rejects username with path traversal (../actions/reset)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "../actions/reset" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "../actions/reset" }).success
     ).toBe(false);
   });
 
   it("delete_subaccount: rejects username with percent-encoded slash (u123%2fevil)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "u123%2fevil" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "u123%2fevil" }).success
     ).toBe(false);
   });
 
   it("delete_subaccount: accepts valid username (u123-sub1)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, username: "u123-sub1" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "u123-sub1" }).success
     ).toBe(true);
   });
 
   // hetzner_delete_storage_box_snapshot — snapshot_id
   it("delete_snapshot: rejects snapshot_id with path traversal (../evil)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, snapshot_id: "../evil" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "../evil" }).success
     ).toBe(false);
   });
 
   it("delete_snapshot: rejects snapshot_id with forward slash (a/b)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, snapshot_id: "a/b" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "a/b" }).success
     ).toBe(false);
   });
 
   it("delete_snapshot: accepts valid snapshot_id with hyphen (snapshot-2024-01-01)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, snapshot_id: "snapshot-2024-01-01" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "snapshot-2024-01-01" }).success
     ).toBe(true);
   });
 
   it("delete_snapshot: accepts numeric snapshot_id (12345)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, snapshot_id: "12345" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "12345" }).success
+    ).toBe(true);
+  });
+
+  it("delete_snapshot: accepts ISO-style snapshot name with colon (2024-01-15T12:00:00+01:00)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "2024-01-15T12:00:00+01:00" }).success
     ).toBe(true);
   });
 });
 
 // M-2 security: password complexity policy enforcement
 describe("M-2 security: password complexity policy enforcement", () => {
-  type SchemaLike = { safeParse: (v: unknown) => { success: boolean } };
-  type ToolWithSchema = { name: string; opts: { inputSchema: SchemaLike } };
-
-  function captureWithSchema(): ToolWithSchema[] {
-    return captureRegisteredTools() as unknown as ToolWithSchema[];
-  }
-
   const validCreateBase = {
     name: "test-box",
     storage_box_type: "bx11",
@@ -1501,52 +1498,52 @@ describe("M-2 security: password complexity policy enforcement", () => {
 
   // hetzner_create_storage_box — password
   it("create_storage_box: rejects password with only lowercase (aaaaaaaaaaaa)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
     expect(
-      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "aaaaaaaaaaaa" }).success
+      tool.opts.inputSchema?.safeParse({ ...validCreateBase, password: "aaaaaaaaaaaa" }).success
     ).toBe(false);
   });
 
   it("create_storage_box: rejects password missing special char (Abcdef123456)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
     expect(
-      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "Abcdef123456" }).success
+      tool.opts.inputSchema?.safeParse({ ...validCreateBase, password: "Abcdef123456" }).success
     ).toBe(false);
   });
 
   it("create_storage_box: rejects password shorter than 12 chars (Ab1!)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
     expect(
-      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "Ab1!" }).success
+      tool.opts.inputSchema?.safeParse({ ...validCreateBase, password: "Ab1!" }).success
     ).toBe(false);
   });
 
   it("create_storage_box: accepts compliant password (Correct$Horse7)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_create_storage_box")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_create_storage_box")!;
     expect(
-      tool.opts.inputSchema.safeParse({ ...validCreateBase, password: "Correct$Horse7" }).success
+      tool.opts.inputSchema?.safeParse({ ...validCreateBase, password: "Correct$Horse7" }).success
     ).toBe(true);
   });
 
   // hetzner_reset_storage_box_password — password
   it("reset_password: rejects password with only lowercase (aaaaaaaaaaaa)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_reset_storage_box_password")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, password: "aaaaaaaaaaaa" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, password: "aaaaaaaaaaaa" }).success
     ).toBe(false);
   });
 
   it("reset_password: rejects password missing uppercase (correct$horse7)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_reset_storage_box_password")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, password: "correct$horse7" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, password: "correct$horse7" }).success
     ).toBe(false);
   });
 
   it("reset_password: accepts compliant password (NewP@ss123Word)", () => {
-    const tool = captureWithSchema().find((t) => t.name === "hetzner_reset_storage_box_password")!;
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_reset_storage_box_password")!;
     expect(
-      tool.opts.inputSchema.safeParse({ id: 1, password: "NewP@ss123Word" }).success
+      tool.opts.inputSchema?.safeParse({ id: 1, password: "NewP@ss123Word" }).success
     ).toBe(true);
   });
 });

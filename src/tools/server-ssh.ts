@@ -124,11 +124,11 @@ Prerequisites:
 - The SSH private key must be available in the system SSH agent or ~/.ssh
   (the tool calls the system \`ssh\` binary directly).
 
-⚠️ Host key trust: uses StrictHostKeyChecking=accept-new, which automatically
-trusts and records new host keys. If a server is deleted and its IP is later
-reassigned to a different machine, the tool will connect to the new machine
-without warning. For higher security, pre-register expected host fingerprints
-in ~/.ssh/known_hosts and set StrictHostKeyChecking=yes in your SSH config.
+⚠️ Host key trust: uses StrictHostKeyChecking=accept-new. For hosts not yet
+in ~/.ssh/known_hosts, the host key is automatically trusted and recorded. For
+hosts already in known_hosts, a key mismatch is still rejected with an error.
+For higher security, pre-register expected host fingerprints in known_hosts
+and set StrictHostKeyChecking=yes in your SSH config.
 
 Returns used / total / available in MiB and overall usage %, plus swap state.`,
       inputSchema: z.object({
