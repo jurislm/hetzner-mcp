@@ -1679,3 +1679,51 @@ describe("M-2 security: password complexity policy enforcement", () => {
     ).toBe(true);
   });
 });
+
+// L-2b security: HTML escaping in non-label fields of format functions
+describe("L-2b security: HTML escaping in non-label fields", () => {
+  const XSS = '<script>alert(1)</script>';
+  const SAFE = '&lt;script&gt;alert(1)&lt;/script&gt;';
+
+  it("formatStorageBox escapes box.name in heading", () => {
+    const out = formatStorageBox({ ...baseBox, name: XSS });
+    expect(out).not.toContain(XSS);
+    expect(out).toContain(SAFE);
+  });
+
+  it("formatStorageBox escapes box.username", () => {
+    const out = formatStorageBox({ ...baseBox, username: '<b>user</b>' });
+    expect(out).not.toContain('<b>user</b>');
+    expect(out).toContain('&lt;b&gt;user&lt;/b&gt;');
+  });
+
+  it("formatSubaccount escapes sub.username in heading", () => {
+    const out = formatSubaccount({ ...baseSubaccount, username: XSS });
+    expect(out).not.toContain(XSS);
+    expect(out).toContain(SAFE);
+  });
+
+  it("formatSubaccount escapes sub.home_directory", () => {
+    const out = formatSubaccount({ ...baseSubaccount, home_directory: '/home/<evil>' });
+    expect(out).not.toContain('<evil>');
+    expect(out).toContain('&lt;evil&gt;');
+  });
+
+  it("formatSubaccount escapes sub.comment", () => {
+    const out = formatSubaccount({ ...baseSubaccount, comment: '<img src=x onerror=alert(1)>' });
+    expect(out).not.toContain('<img');
+    expect(out).toContain('&lt;img');
+  });
+
+  it("formatSnapshot escapes snap.name in heading", () => {
+    const out = formatSnapshot({ ...baseSnapshot, name: XSS });
+    expect(out).not.toContain(XSS);
+    expect(out).toContain(SAFE);
+  });
+
+  it("formatSnapshot escapes snap.description", () => {
+    const out = formatSnapshot({ ...baseSnapshot, description: '<b>desc</b>' });
+    expect(out).not.toContain('<b>desc</b>');
+    expect(out).toContain('&lt;b&gt;desc&lt;/b&gt;');
+  });
+});

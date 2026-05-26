@@ -213,3 +213,29 @@ describe("L-3 security: create_server body field character validation", () => {
     ).toBe(true);
   });
 });
+
+// L-2b security: HTML escaping in non-label fields of formatServer
+describe("L-2b security: HTML escaping in formatServer non-label fields", () => {
+  const XSS = '<script>alert(1)</script>';
+  const SAFE = '&lt;script&gt;alert(1)&lt;/script&gt;';
+
+  it("hetzner_get_server escapes server.name in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_server")!.handler;
+    mockedRequest.mockResolvedValueOnce({ server: { ...baseServer, name: XSS } });
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain(XSS);
+    expect(result.content[0].text).toContain(SAFE);
+  });
+
+  it("hetzner_get_server escapes server.image.name in markdown output", async () => {
+    const tools = captureRegisteredTools();
+    const handler = tools.find((t) => t.name === "hetzner_get_server")!.handler;
+    mockedRequest.mockResolvedValueOnce({
+      server: { ...baseServer, image: { ...baseServer.image, name: '<evil-image>' } }
+    });
+    const result = await handler({ id: 1, response_format: "markdown" });
+    expect(result.content[0].text).not.toContain('<evil-image>');
+    expect(result.content[0].text).toContain('&lt;evil-image&gt;');
+  });
+});
