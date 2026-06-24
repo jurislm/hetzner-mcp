@@ -1,15 +1,28 @@
 import { execFile } from "child_process";
+import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { tmpdir } from "os";
+import { join } from "path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import { ResponseFormat, ResponseFormatSchema, GetServerResponseSchema } from "../types.js";
 
+/** Result of a host-key scan: parsed fingerprints plus the raw known_hosts entries. */
+export interface HostKeyScan {
+  /** SHA256 fingerprints of every host key type advertised by the server. */
+  fingerprints: string[];
+  /** Raw ssh-keyscan output, suitable for pinning via UserKnownHostsFile. */
+  knownHosts: string;
+}
+
 /**
- * Resolves SHA256 fingerprints of all host SSH key types via ssh-keyscan + ssh-keygen.
- * Returns an array because a host advertises multiple key types (RSA, ECDSA, ed25519).
+ * Resolves SHA256 fingerprints of all host SSH key types via ssh-keyscan + ssh-keygen,
+ * and returns the raw known_hosts lines alongside them so the caller can pin the
+ * verified key for the actual connection (closing the keyscan→connect TOCTOU gap).
+ * A host advertises multiple key types (RSA, ECDSA, ed25519), hence an array.
  * Exported so tests can inject a mock via the keyScanRunner DI parameter.
  */
-export function runSshKeyScan(host: string, port: number): Promise<string[]> {
+export function runSshKeyScan(host: string, port: number): Promise<HostKeyScan> {
   return new Promise((resolve, reject) => {
     // Step 1: fetch raw host key entries (all key types)
     execFile(
@@ -40,7 +53,7 @@ export function runSshKeyScan(host: string, port: number): Promise<string[]> {
               reject(new Error(`Could not parse fingerprint from: ${keygenOut.trim()}`));
               return;
             }
-            resolve(matches);
+            resolve({ fingerprints: matches, knownHosts: rawKey });
           }
         );
         proc.stdin?.write(rawKey + "\n");
@@ -122,27 +135,73 @@ function fmtMiB(n: number): string {
   return n.toLocaleString("en-US");
 }
 
+export interface SshConnectOptions {
+  /**
+   * Raw known_hosts lines (ssh-keyscan output) to pin host-key verification
+   * against. When set, the connection uses StrictHostKeyChecking=yes against a
+   * private known_hosts file containing only these keys — eliminating the TOFU
+   * accept-new window. When omitted, falls back to accept-new (TOFU).
+   */
+  pinnedHostKeys?: string;
+}
+
 // Thin wrapper around child_process.execFile — kept as a named export so
 // tests can intercept it without having to mock the whole child_process module.
 export function runSsh(
   host: string,
   port: number,
   user: string,
-  command: string
+  command: string,
+  options: SshConnectOptions = {}
 ): Promise<string> {
   return new Promise((resolve, reject) => {
+    // When the caller has verified a host key out-of-band, pin it: write the
+    // raw keys to a private temp known_hosts and demand an exact match.
+    let pinnedDir: string | null = null;
+    const hostKeyArgs: string[] = [];
+    try {
+      if (options.pinnedHostKeys) {
+        pinnedDir = mkdtempSync(join(tmpdir(), "hetzner-mcp-kh-"));
+        const knownHostsFile = join(pinnedDir, "known_hosts");
+        const contents = options.pinnedHostKeys.endsWith("\n")
+          ? options.pinnedHostKeys
+          : `${options.pinnedHostKeys}\n`;
+        writeFileSync(knownHostsFile, contents, { mode: 0o600 });
+        hostKeyArgs.push(
+          "-o", "StrictHostKeyChecking=yes",
+          "-o", `UserKnownHostsFile=${knownHostsFile}`
+        );
+      } else {
+        hostKeyArgs.push("-o", "StrictHostKeyChecking=accept-new");
+      }
+    } catch (setupErr) {
+      reject(setupErr instanceof Error ? setupErr : new Error(String(setupErr)));
+      return;
+    }
+
+    const cleanup = (): void => {
+      if (pinnedDir) {
+        try {
+          rmSync(pinnedDir, { recursive: true, force: true });
+        } catch {
+          // Best-effort cleanup of a temp dir under os.tmpdir(); ignore failures.
+        }
+      }
+    };
+
     execFile(
       "ssh",
       [
         "-o", "ConnectTimeout=10",
         "-o", "BatchMode=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
+        ...hostKeyArgs,
         "-p", String(port),
         `${user}@${host}`,
         command
       ],
       { timeout: 15_000 },
       (error, stdout) => {
+        cleanup();
         if (error) reject(error);
         else resolve(stdout);
       }
@@ -170,14 +229,16 @@ Prerequisites:
 - The SSH private key must be available in the system SSH agent or ~/.ssh
   (the tool calls the system \`ssh\` binary directly).
 
-⚠️ TOFU risk: uses StrictHostKeyChecking=accept-new. On the first connection to
-a host, any key is automatically trusted (Trust-On-First-Use). An active MITM
-attack on the first connection would go undetected. To prevent this, supply the
-expected_fingerprint parameter (SHA256 format, e.g. "SHA256:abc123…"). When
-provided, the host key fingerprint is verified via ssh-keyscan before connecting
-and the connection is aborted if it does not match. For the highest security,
-pre-register fingerprints in known_hosts and set StrictHostKeyChecking=yes in
-your SSH config.
+⚠️ TOFU risk: without a fingerprint, uses StrictHostKeyChecking=accept-new. On
+the first connection to a host, any key is automatically trusted
+(Trust-On-First-Use), so an active MITM on that first connection would go
+undetected. To prevent this, supply the expected_fingerprint parameter (SHA256
+format, e.g. "SHA256:abc123…"). When provided, the host key is verified via
+ssh-keyscan before connecting AND that exact key is pinned for the connection
+itself (StrictHostKeyChecking=yes against a private known_hosts), so a key
+swapped in between the scan and the connect is rejected. For the highest
+security, pre-register fingerprints in known_hosts and set
+StrictHostKeyChecking=yes in your SSH config.
 
 Returns used / total / available in MiB and overall usage %, plus swap state.`,
       inputSchema: z.object({
@@ -228,27 +289,34 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
           };
         }
 
-        // Step 2: verify host fingerprint if caller supplied one
+        // Step 2: verify host fingerprint if caller supplied one. On success we
+        // keep the raw host keys to pin the actual connection (Step 3), so a
+        // MITM between the scan and the connect cannot slip in a different key.
+        let pinnedHostKeys: string | undefined;
         if (params.expected_fingerprint) {
-          let actualFps: string[];
+          let scan: HostKeyScan;
           try {
-            actualFps = await keyScanRunner(ipv4, sshPort);
+            scan = await keyScanRunner(ipv4, sshPort);
           } catch (scanErr) {
             return {
               content: [{ type: "text", text: `Error: fingerprint verification failed: ${scanErr instanceof Error ? scanErr.message : String(scanErr)}` }],
               isError: true
             };
           }
-          if (!actualFps.includes(params.expected_fingerprint)) {
+          if (!scan.fingerprints.includes(params.expected_fingerprint)) {
             return {
-              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${actualFps.join(", ")}` }],
+              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${scan.fingerprints.join(", ")}` }],
               isError: true
             };
           }
+          pinnedHostKeys = scan.knownHosts;
         }
 
-        // Step 3: SSH and run free -m
-        const stdout = await sshRunner(ipv4, sshPort, sshUser, "free -m");
+        // Step 3: SSH and run free -m. When a fingerprint was verified, pin the
+        // exact host key (StrictHostKeyChecking=yes); otherwise fall back to TOFU.
+        const stdout = pinnedHostKeys
+          ? await sshRunner(ipv4, sshPort, sshUser, "free -m", { pinnedHostKeys })
+          : await sshRunner(ipv4, sshPort, sshUser, "free -m");
         const { ram, swap } = parseFreeOutput(stdout);
 
         if (params.response_format === ResponseFormat.JSON) {

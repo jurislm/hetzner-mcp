@@ -30,7 +30,12 @@ import {
   HetznerAction,
   BooleanKeys
 } from "../types.js";
-import { escapeHtml } from "../utils.js";
+import { escapeHtml, isSafePathSegment } from "../utils.js";
+
+// Shared message for path-segment params that pass the char allowlist but are
+// dot-only (".", "..") and could traverse to a parent resource upstream.
+const PATH_SEGMENT_TRAVERSAL_MSG =
+  "must not be a path-traversal segment ('.', '..', '...')";
 
 const ResponseFormatSchema = z.nativeEnum(ResponseFormat).default(ResponseFormat.MARKDOWN);
 const DEFAULT_PER_PAGE = 50;
@@ -831,6 +836,7 @@ Use access settings to configure which protocols the subaccount can use.`,
         username: z
           .string()
           .regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .refine(isSafePathSegment, `username ${PATH_SEGMENT_TRAVERSAL_MSG}`)
           .describe("The subaccount username to update"),
         comment: z.string().optional().describe("New comment"),
         labels: z.record(z.string(), z.string()).optional().describe("Labels (replaces existing)"),
@@ -897,6 +903,7 @@ Use access settings to configure which protocols the subaccount can use.`,
         username: z
           .string()
           .regex(/^[a-zA-Z0-9._-]+$/, "username must contain only alphanumeric characters, dots, underscores, or hyphens")
+          .refine(isSafePathSegment, `username ${PATH_SEGMENT_TRAVERSAL_MSG}`)
           .describe("The subaccount username to delete")
       }).strict(),
       annotations: {
@@ -942,6 +949,7 @@ Use access settings to configure which protocols the subaccount can use.`,
             /^[A-Za-z0-9._:+@-]+$/,
             "snapshot_id must contain only safe characters (alphanumeric, . _ : + @ -)"
           )
+          .refine(isSafePathSegment, `snapshot_id ${PATH_SEGMENT_TRAVERSAL_MSG}`)
           .describe("Snapshot name or numeric ID (as string)")
       }).strict(),
       annotations: {
