@@ -177,6 +177,17 @@ export function runSsh(
     // raw keys to a private temp known_hosts and demand an exact match.
     let pinnedDir: string | null = null;
     const hostKeyArgs: string[] = [];
+    // Defined before the try so the setup-error path can also clean up a temp
+    // dir that was created before writeFileSync (or a later step) threw.
+    const cleanup = (): void => {
+      if (pinnedDir) {
+        try {
+          rmSync(pinnedDir, { recursive: true, force: true });
+        } catch {
+          // Best-effort cleanup of a temp dir under os.tmpdir(); ignore failures.
+        }
+      }
+    };
     try {
       if (options.pinnedHostKeys) {
         pinnedDir = mkdtempSync(join(tmpdir(), "hetzner-mcp-kh-"));
@@ -193,19 +204,10 @@ export function runSsh(
         hostKeyArgs.push("-o", "StrictHostKeyChecking=accept-new");
       }
     } catch (setupErr) {
+      cleanup();
       reject(setupErr instanceof Error ? setupErr : new Error(String(setupErr)));
       return;
     }
-
-    const cleanup = (): void => {
-      if (pinnedDir) {
-        try {
-          rmSync(pinnedDir, { recursive: true, force: true });
-        } catch {
-          // Best-effort cleanup of a temp dir under os.tmpdir(); ignore failures.
-        }
-      }
-    };
 
     execFile(
       "ssh",
