@@ -1533,6 +1533,50 @@ describe("H-1 security: username / snapshot_id path injection prevention", () =>
       tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "2024-01-15T12:00:00+01:00" }).success
     ).toBe(true);
   });
+
+  // Dot-only path segments — the char allowlist permits "." so "." / ".." / "..."
+  // slip through the slash checks but normalise to a parent resource upstream.
+  it("update_subaccount: rejects dot-dot segment (..)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "..", response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("update_subaccount: rejects single-dot segment (.)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_update_storage_box_subaccount")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: ".", response_format: "markdown" }).success
+    ).toBe(false);
+  });
+
+  it("delete_subaccount: rejects dot-dot segment (..)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: ".." }).success
+    ).toBe(false);
+  });
+
+  it("delete_subaccount: rejects triple-dot segment (...)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_subaccount")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, username: "..." }).success
+    ).toBe(false);
+  });
+
+  it("delete_snapshot: rejects dot-dot segment (..)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: ".." }).success
+    ).toBe(false);
+  });
+
+  it("delete_snapshot: rejects single-dot segment (.)", () => {
+    const tool = captureRegisteredTools().find((t) => t.name === "hetzner_delete_storage_box_snapshot")!;
+    expect(
+      tool.opts.inputSchema?.safeParse({ id: 1, snapshot_id: "." }).success
+    ).toBe(false);
+  });
 });
 
 // H-1b security: rollback snapshot injection prevention
