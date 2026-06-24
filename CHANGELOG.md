@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.2](https://github.com/jurislm/hetzner-mcp/compare/v1.4.1...v1.4.2) (2026-06-24)
+
+
+### Bug Fixes
+
+* clean up temp known_hosts dir on runSsh setup-error path ([915f3f2](https://github.com/jurislm/hetzner-mcp/commit/915f3f22c2ba24b4ba9918a9e109e5450ee597e2))
+* **security:** pin only the fingerprint-verified host key, not every scanned key ([9be2230](https://github.com/jurislm/hetzner-mcp/commit/9be22309494d85f083df75dcdcebf1fc1757621b))
+* **security:** reject dot-only path segments and pin verified SSH host keys ([38a8992](https://github.com/jurislm/hetzner-mcp/commit/38a8992514fca49d9fb4fbebcb672e30c2fe9021))
+* **security:** reject dot-only path segments and pin verified SSH host keys ([38a8992](https://github.com/jurislm/hetzner-mcp/commit/38a8992514fca49d9fb4fbebcb672e30c2fe9021))
+* **security:** reject dot-only path segments and pin verified SSH host keys ([ee7fb90](https://github.com/jurislm/hetzner-mcp/commit/ee7fb908ff46b9d045f87958f147b7c2c2aa4c6d))
+
 ## [1.4.1](https://github.com/jurislm/hetzner-mcp/compare/v1.4.0...v1.4.1) (2026-05-26)
 
 
