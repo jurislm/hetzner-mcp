@@ -122,8 +122,10 @@ describe("runSshKeyScan — direct unit tests", () => {
     await expect(runSshKeyScan("1.2.3.4", 22)).rejects.toThrow("connection timeout");
   });
 
-  it("returns all fingerprints preserving base64 padding plus raw known_hosts (Findings #1 and #2)", async () => {
-    const keyscanOut = "1.2.3.4 ecdsa-sha2-nistp256 ECDSA\n1.2.3.4 ssh-ed25519 ED25519";
+  it("binds each fingerprint to its own known_hosts line, preserving base64 padding (Findings #1 and #2)", async () => {
+    const ecdsaLine = "1.2.3.4 ecdsa-sha2-nistp256 ECDSA";
+    const ed25519Line = "1.2.3.4 ssh-ed25519 ED25519";
+    const keyscanOut = `${ecdsaLine}\n${ed25519Line}`;
     // Second fingerprint has trailing '=' (base64 padding)
     const keygenOut = "256 SHA256:AbCdEf+abc root@host (ECDSA)\n256 SHA256:XyZ123/q8= user@host (ED25519)";
     stubExecFileCalls(
@@ -132,12 +134,21 @@ describe("runSshKeyScan — direct unit tests", () => {
     );
 
     const result = await runSshKeyScan("1.2.3.4", 22);
-    expect(Array.isArray(result.fingerprints)).toBe(true);
-    expect(result.fingerprints).toContain("SHA256:AbCdEf+abc");
-    expect(result.fingerprints).toContain("SHA256:XyZ123/q8=");  // '=' must be preserved
-    expect(result.fingerprints).toHaveLength(2);
-    // knownHosts carries the raw ssh-keyscan output so the connection can pin it.
-    expect(result.knownHosts).toBe(keyscanOut);
+    expect(result).toHaveLength(2);
+    // Each fingerprint stays bound to the exact line it was computed from, so
+    // the caller can pin ONLY the verified key (not every scanned algorithm).
+    expect(result[0]).toEqual({ fingerprint: "SHA256:AbCdEf+abc", knownHostsLine: ecdsaLine });
+    expect(result[1]).toEqual({ fingerprint: "SHA256:XyZ123/q8=", knownHostsLine: ed25519Line }); // '=' preserved
+  });
+
+  it("rejects when key-line count and fingerprint count disagree (fail closed)", async () => {
+    // Two scanned key lines but only one fingerprint — index correlation is
+    // unreliable, so we must not risk pinning the wrong line.
+    stubExecFileCalls(
+      { err: null, stdout: "1.2.3.4 ssh-ed25519 KEY1\n1.2.3.4 ecdsa-sha2-nistp256 KEY2", stderr: "" },
+      { err: null, stdout: "256 SHA256:OnlyOne root@host (ED25519)", stderr: "" }
+    );
+    await expect(runSshKeyScan("1.2.3.4", 22)).rejects.toThrow(/mismatch/i);
   });
 
   it("rejects when ssh-keygen produces no recognisable fingerprint", async () => {
@@ -421,6 +432,8 @@ describe("hetzner_get_server_ram — error handling", () => {
 const FAKE_FP = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 const WRONG_FP = "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
 const KNOWN_HOSTS = "91.99.173.93 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAFAKEKEY";
+// One verified host key entry (fingerprint bound to its known_hosts line).
+const FAKE_SCAN = [{ fingerprint: FAKE_FP, knownHostsLine: KNOWN_HOSTS }];
 
 describe("hetzner_get_server_ram — expected_fingerprint", () => {
   it("tool description warns about TOFU risk and mentions expected_fingerprint", () => {
@@ -446,7 +459,7 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
 
   it("calls keyScanRunner with resolved IP and port when expected_fingerprint is provided", async () => {
     mockedRequest.mockResolvedValueOnce(serverResponse);
-    mockKeyScan.mockResolvedValueOnce({ fingerprints: [FAKE_FP], knownHosts: KNOWN_HOSTS });
+    mockKeyScan.mockResolvedValueOnce(FAKE_SCAN);
     mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
 
     await captureHandler()({
@@ -461,7 +474,7 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
 
   it("proceeds normally when fingerprint matches", async () => {
     mockedRequest.mockResolvedValueOnce(serverResponse);
-    mockKeyScan.mockResolvedValueOnce({ fingerprints: [FAKE_FP], knownHosts: KNOWN_HOSTS });
+    mockKeyScan.mockResolvedValueOnce(FAKE_SCAN);
     mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
 
     const result = await captureHandler()({
@@ -476,7 +489,7 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
 
   it("pins the verified host key for the SSH connection, closing the TOCTOU gap", async () => {
     mockedRequest.mockResolvedValueOnce(serverResponse);
-    mockKeyScan.mockResolvedValueOnce({ fingerprints: [FAKE_FP], knownHosts: KNOWN_HOSTS });
+    mockKeyScan.mockResolvedValueOnce(FAKE_SCAN);
     mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
 
     await captureHandler()({
@@ -492,6 +505,31 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
     });
   });
 
+  it("pins ONLY the matched key, never other scanned algorithms a MITM injected (P1)", async () => {
+    const attackerLine = "91.99.173.93 ssh-rsa AAAAATTACKERKEY";
+    const verifiedLine = "91.99.173.93 ssh-ed25519 AAAAVERIFIEDKEY";
+    mockedRequest.mockResolvedValueOnce(serverResponse);
+    // ssh-keyscan returns the real ed25519 key (matches expected) AND an
+    // attacker-controlled rsa key. Only the verified line may be pinned.
+    mockKeyScan.mockResolvedValueOnce([
+      { fingerprint: WRONG_FP, knownHostsLine: attackerLine },
+      { fingerprint: FAKE_FP, knownHostsLine: verifiedLine }
+    ]);
+    mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
+
+    await captureHandler()({
+      id: 1,
+      expected_fingerprint: FAKE_FP,
+      response_format: "markdown"
+    });
+
+    expect(mockSsh).toHaveBeenCalledWith("91.99.173.93", 22, "root", "free -m", {
+      pinnedHostKeys: verifiedLine
+    });
+    const opts = mockSsh.mock.calls[0][4] as { pinnedHostKeys: string };
+    expect(opts.pinnedHostKeys).not.toContain("ATTACKER");
+  });
+
   it("does NOT pin (TOFU accept-new) when no fingerprint is supplied", async () => {
     mockedRequest.mockResolvedValueOnce(serverResponse);
     mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
@@ -504,7 +542,7 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
 
   it("returns isError and does NOT call sshRunner when fingerprint mismatches", async () => {
     mockedRequest.mockResolvedValueOnce(serverResponse);
-    mockKeyScan.mockResolvedValueOnce({ fingerprints: [FAKE_FP], knownHosts: KNOWN_HOSTS });
+    mockKeyScan.mockResolvedValueOnce(FAKE_SCAN);
 
     const result = await captureHandler()({
       id: 1,
@@ -534,8 +572,11 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
 
   it("proceeds when expected_fingerprint matches second key in multi-key response (Finding #1)", async () => {
     mockedRequest.mockResolvedValueOnce(serverResponse);
-    // keyScanRunner returns multiple fingerprints — expected is the SECOND
-    const multiKeyMock = vi.fn<typeof runSshKeyScan>().mockResolvedValueOnce({ fingerprints: [WRONG_FP, FAKE_FP], knownHosts: KNOWN_HOSTS });
+    // keyScanRunner returns multiple entries — expected matches the SECOND
+    const multiKeyMock = vi.fn<typeof runSshKeyScan>().mockResolvedValueOnce([
+      { fingerprint: WRONG_FP, knownHostsLine: "91.99.173.93 ssh-rsa OTHER" },
+      { fingerprint: FAKE_FP, knownHostsLine: KNOWN_HOSTS }
+    ]);
     mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
 
     const result = await captureHandler(multiKeyMock)({
@@ -551,7 +592,7 @@ describe("hetzner_get_server_ram — expected_fingerprint", () => {
   it("returns isError when padded fingerprint (SHA256:abc==) is expected but extraction strips padding (Finding #2)", async () => {
     const PADDED_FP = "SHA256:AbCdEfGhIjKlMnOpQrStUvWxYzABCDEFGHIJK==";
     mockedRequest.mockResolvedValueOnce(serverResponse);
-    const paddedMock = vi.fn<typeof runSshKeyScan>().mockResolvedValueOnce({ fingerprints: [PADDED_FP], knownHosts: KNOWN_HOSTS });
+    const paddedMock = vi.fn<typeof runSshKeyScan>().mockResolvedValueOnce([{ fingerprint: PADDED_FP, knownHostsLine: KNOWN_HOSTS }]);
     mockSsh.mockResolvedValueOnce(FREE_OUTPUT_NORMAL);
 
     const result = await captureHandler(paddedMock)({

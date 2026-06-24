@@ -7,20 +7,24 @@ import { z } from "zod";
 import { makeApiRequest, handleApiError } from "../api.js";
 import { ResponseFormat, ResponseFormatSchema, GetServerResponseSchema } from "../types.js";
 
-/** Result of a host-key scan: parsed fingerprints plus the raw known_hosts entries. */
-export interface HostKeyScan {
-  /** SHA256 fingerprints of every host key type advertised by the server. */
-  fingerprints: string[];
-  /** Raw ssh-keyscan output, suitable for pinning via UserKnownHostsFile. */
-  knownHosts: string;
+/** A single host key: its SHA256 fingerprint bound to its exact known_hosts line. */
+export interface HostKeyEntry {
+  /** SHA256 fingerprint of this host key (e.g. "SHA256:abc…"). */
+  fingerprint: string;
+  /** The ssh-keyscan line for this key, suitable for pinning via UserKnownHostsFile. */
+  knownHostsLine: string;
 }
 
+/** One entry per host key type the server advertises (RSA, ECDSA, ed25519, …). */
+export type HostKeyScan = HostKeyEntry[];
+
 /**
- * Resolves SHA256 fingerprints of all host SSH key types via ssh-keyscan + ssh-keygen,
- * and returns the raw known_hosts lines alongside them so the caller can pin the
- * verified key for the actual connection (closing the keyscan→connect TOCTOU gap).
- * A host advertises multiple key types (RSA, ECDSA, ed25519), hence an array.
- * Exported so tests can inject a mock via the keyScanRunner DI parameter.
+ * Resolves the host's SSH keys via ssh-keyscan + ssh-keygen, returning each
+ * SHA256 fingerprint BOUND to the exact known_hosts line it was computed from.
+ * Keeping the binding lets the caller pin only the key whose fingerprint was
+ * verified — never sibling algorithms a MITM might have injected — and closes
+ * the keyscan→connect TOCTOU gap. A host advertises multiple key types, hence
+ * an array. Exported so tests can inject a mock via the keyScanRunner DI parameter.
  */
 export function runSshKeyScan(host: string, port: number): Promise<HostKeyScan> {
   return new Promise((resolve, reject) => {
@@ -53,7 +57,21 @@ export function runSshKeyScan(host: string, port: number): Promise<HostKeyScan> 
               reject(new Error(`Could not parse fingerprint from: ${keygenOut.trim()}`));
               return;
             }
-            resolve({ fingerprints: matches, knownHosts: rawKey });
+            // ssh-keyscan stdout has one key per line (banners go to stderr) and
+            // ssh-keygen -l emits fingerprints in that same order, so zip by index
+            // to bind each fingerprint to its line. If the counts disagree the
+            // correlation is unreliable — fail closed rather than mispin a key.
+            const keyLines = rawKey
+              .split("\n")
+              .map((l) => l.trim())
+              .filter((l) => l.length > 0 && !l.startsWith("#"));
+            if (keyLines.length !== matches.length) {
+              reject(new Error(
+                `Host key parse mismatch: ${keyLines.length} key line(s) but ${matches.length} fingerprint(s)`
+              ));
+              return;
+            }
+            resolve(matches.map((fingerprint, i) => ({ fingerprint, knownHostsLine: keyLines[i] })));
           }
         );
         proc.stdin?.write(rawKey + "\n");
@@ -290,8 +308,9 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
         }
 
         // Step 2: verify host fingerprint if caller supplied one. On success we
-        // keep the raw host keys to pin the actual connection (Step 3), so a
-        // MITM between the scan and the connect cannot slip in a different key.
+        // pin ONLY the known_hosts line whose fingerprint matched — never the
+        // sibling algorithms a MITM could also list — so the connect (Step 3)
+        // cannot authenticate against an unverified key.
         let pinnedHostKeys: string | undefined;
         if (params.expected_fingerprint) {
           let scan: HostKeyScan;
@@ -303,13 +322,15 @@ Returns used / total / available in MiB and overall usage %, plus swap state.`,
               isError: true
             };
           }
-          if (!scan.fingerprints.includes(params.expected_fingerprint)) {
+          const matched = scan.filter((e) => e.fingerprint === params.expected_fingerprint);
+          if (matched.length === 0) {
+            const seen = scan.map((e) => e.fingerprint).join(", ");
             return {
-              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${scan.fingerprints.join(", ")}` }],
+              content: [{ type: "text", text: `Error: fingerprint mismatch for ${ipv4}. Expected: ${params.expected_fingerprint} — Got: ${seen}` }],
               isError: true
             };
           }
-          pinnedHostKeys = scan.knownHosts;
+          pinnedHostKeys = matched.map((e) => e.knownHostsLine).join("\n");
         }
 
         // Step 3: SSH and run free -m. When a fingerprint was verified, pin the
